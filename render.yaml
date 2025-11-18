@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: byui-student-advisor-api
+    env: python
+    plan: free
+    region: oregon
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    autoDeploy: true
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: EMBEDDINGS_PATH
+        value: embeddings.json
+      - key: GEMINI_GENERATION_MODEL
+        value: gemini-1.5-flash

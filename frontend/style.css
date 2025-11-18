@@ -1,0 +1,231 @@
+:root {
+  font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  color: #0e1a2b;
+  background-color: #f5f7fb;
+  --byui-blue: #0b4d92;
+  --byui-blue-dark: #093b72;
+  --byui-green: #1a7f64;
+  --surface: #ffffff;
+  --surface-alt: #f9fafc;
+  --border: #dbe2ef;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  padding: clamp(1rem, 3vw, 2.5rem) clamp(0.5rem, 2vw, 2rem);
+  background: radial-gradient(
+      circle at top,
+      rgba(11, 77, 146, 0.08),
+      transparent 55%
+    ),
+    #f5f7fb;
+}
+
+.app-shell {
+  width: min(960px, 100%);
+  min-height: 90vh;
+  background: var(--surface);
+  border-radius: 1.5rem;
+  box-shadow: 0 25px 70px rgba(13, 26, 44, 0.15);
+  padding: clamp(1.5rem, 3vw, 2.6rem);
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  border: 1px solid rgba(11, 77, 146, 0.05);
+}
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.25em;
+  font-size: 0.78rem;
+  color: var(--byui-blue);
+  margin: 0 0 0.35rem;
+}
+
+.app-header h1 {
+  margin: 0;
+  color: var(--byui-blue-dark);
+  font-size: clamp(1.8rem, 4vw, 2.4rem);
+}
+
+.app-header p {
+  margin: 0.4rem 0 0;
+  color: #526176;
+}
+
+.status-pill {
+  background: rgba(26, 127, 100, 0.17);
+  color: var(--byui-green);
+  font-weight: 600;
+  padding: 0.45rem 1.2rem;
+  border-radius: 999px;
+  border: 1px solid rgba(26, 127, 100, 0.4);
+}
+
+.control-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.control-panel label {
+  font-weight: 600;
+}
+
+.control-panel select {
+  padding: 0.85rem;
+  border-radius: 0.9rem;
+  border: 1px solid var(--border);
+  background: var(--surface-alt);
+  font-size: 1rem;
+}
+
+.chat-window {
+  flex: 1;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 1.25rem;
+  padding: 1.25rem;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.message {
+  max-width: 700px;
+  width: fit-content;
+  padding: 1rem 1.1rem;
+  border-radius: 1.25rem;
+  border: 1px solid transparent;
+  animation: fadeIn 0.25s ease;
+  font-size: 1rem;
+  line-height: 1.6;
+  box-shadow: 0 18px 35px rgba(16, 37, 66, 0.08);
+}
+
+.message p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.message ul,
+.message ol {
+  margin: 0.5rem 0;
+  padding-left: 1.4rem;
+}
+
+.message a {
+  color: var(--byui-blue);
+  text-decoration: underline;
+  word-break: break-word;
+}
+
+.message--user {
+  align-self: flex-end;
+  background: linear-gradient(135deg, var(--byui-blue), #1479d1);
+  color: white;
+  border-bottom-right-radius: 0.35rem;
+}
+
+.message--bot {
+  align-self: flex-start;
+  background: #f8f7ff;
+  border: 1px solid #e8e5ff;
+  color: #1c2333;
+  border-bottom-left-radius: 0.35rem;
+}
+
+.message--typing {
+  font-style: italic;
+  color: #6d7385;
+  background: transparent;
+  border: 1px dashed var(--border);
+  box-shadow: none;
+}
+
+.input-bar {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.input-bar input {
+  flex: 1;
+  padding: 0.9rem 1rem;
+  border-radius: 0.95rem;
+  border: 1px solid var(--border);
+  font-size: 1rem;
+  font-family: inherit;
+  background: var(--surface-alt);
+}
+
+.input-bar button {
+  padding: 0 1.75rem;
+  border-radius: 0.95rem;
+  border: none;
+  font-size: 1rem;
+  font-weight: 600;
+  background: var(--byui-blue);
+  color: white;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.input-bar button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.input-bar button:not(:disabled):hover {
+  background: var(--byui-blue-dark);
+  transform: translateY(-1px);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 700px) {
+  body {
+    padding: 1rem 0.5rem;
+  }
+
+  .app-shell {
+    padding: 1.25rem;
+    border-radius: 1rem;
+  }
+
+  .app-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .message {
+    max-width: 100%;
+  }
+}

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>BYU-Idaho Advisor Chatbot</title>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="app-header">
+        <div>
+          <p class="eyebrow">BYU-Idaho Advisor</p>
+          <h1>Plan your next step with confidence</h1>
+          <p>Friendly guidance for incoming, current, and graduating students.</p>
+        </div>
+        <div class="status-pill">Online</div>
+      </header>
+
+      <section class="control-panel">
+        <label for="category">Select a category</label>
+        <select id="category">
+          <option>Incoming Student</option>
+          <option>Current Student</option>
+          <option>Graduating Student</option>
+        </select>
+      </section>
+
+      <section id="chat-window" class="chat-window" aria-live="polite"></section>
+
+      <form id="question-form" class="input-bar">
+        <input
+          type="text"
+          id="question"
+          name="question"
+          placeholder="Type your question..."
+          autocomplete="off"
+          required
+        />
+        <button type="submit">Send</button>
+      </form>
+
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    <script src="script.js" defer></script>
+  </body>
+</html>
