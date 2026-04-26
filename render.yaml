@@ -10,6 +10,8 @@ services:
     envVars:
       - key: GEMINI_API_KEY
         sync: false
+      - key: SESSION_SECRET
+        sync: false
       - key: EMBEDDINGS_PATH
         value: embeddings.json
       - key: GEMINI_GENERATION_MODEL

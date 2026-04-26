@@ -5,14 +5,20 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
+from urllib.parse import quote
 
 import google.generativeai as genai
 import numpy as np
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Form, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, RedirectResponse
+from passlib.context import CryptContext
 from pydantic import BaseModel, Field, validator
+from starlette.middleware.sessions import SessionMiddleware
+
+from auth_db import employee_has_login, find_employee_by_token, get_connection, init_db, is_token_expired
 
 load_dotenv()
 
@@ -22,6 +28,8 @@ GENERATION_MODEL_NAME = os.getenv("GEMINI_GENERATION_MODEL", "models/gemini-flas
 CATEGORY_BOOST = float(os.getenv("CATEGORY_BOOST", "0.15"))
 MAX_CONTEXT_CHUNKS = 25
 VALID_CATEGORIES = {"incoming", "current", "graduating"}
+PASSWORD_CONTEXT = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+SESSION_SECRET = os.getenv("SESSION_SECRET", "change-this-in-render")
 
 SYSTEM_PROMPT = """You are BYU-Idaho AdvisorBot, a helpful, accurate, and concise student support assistant.
 
@@ -54,6 +62,18 @@ knowledge source for final answers.
 If the user requests something outside the document scope (e.g., medical, financial advice,
 or policy speculation), politely decline and direct them to official BYU-Idaho offices.
 
+"""
+
+PAGE_STYLE = """
+<style>
+body { font-family: Arial, sans-serif; max-width: 520px; margin: 40px auto; padding: 16px; line-height: 1.5; }
+form { display: grid; gap: 12px; }
+input { padding: 10px; font-size: 16px; }
+button, a.button { padding: 12px; font-size: 16px; cursor: pointer; text-decoration: none; display: inline-block; }
+.error { color: #b00020; }
+.ok { color: #0a7a2f; }
+.card { border: 1px solid #ddd; border-radius: 10px; padding: 18px; box-shadow: 0 2px 10px rgba(0,0,0,.06); }
+</style>
 """
 
 
@@ -204,6 +224,26 @@ def build_prompt(question: str, scored_chunks: List[Tuple[float, EmbeddingRecord
     )
 
 
+def render_page(title: str, body: str) -> HTMLResponse:
+    return HTMLResponse(f"<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'>{PAGE_STYLE}<title>{title}</title></head><body>{body}</body></html>")
+
+
+def current_user(request: Request):
+    user_id = request.session.get("user_id")
+    if not user_id:
+        return None
+    with get_connection() as conn:
+        return conn.execute(
+            """
+            SELECT employees.id, employees.first_name, employees.last_name, employees.email, login.username
+            FROM employees
+            JOIN login ON login.employee_id = employees.id
+            WHERE employees.id = ?
+            """,
+            (user_id,),
+        ).fetchone()
+
+
 app = FastAPI(
     title="BYU-Idaho Student Advisor RAG API",
     version="1.0.0",
@@ -217,6 +257,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax", https_only=True)
 
 EMBEDDING_INDEX: List[EmbeddingRecord] = []
 GEMINI_CLIENT: Optional[GeminiClient] = None
@@ -225,8 +266,140 @@ GEMINI_CLIENT: Optional[GeminiClient] = None
 @app.on_event("startup")
 async def startup_event() -> None:
     global EMBEDDING_INDEX, GEMINI_CLIENT
+    init_db()
     GEMINI_CLIENT = GeminiClient()
     EMBEDDING_INDEX = load_embedding_index(EMBEDDINGS_PATH)
+
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page(request: Request, next: str = "/SEO") -> HTMLResponse:
+    user = current_user(request)
+    if user:
+        return RedirectResponse(next, status_code=302)
+    return render_page(
+        "Login",
+        f"<div class='card'><h1>Login</h1><form method='post' action='/login'>"
+        f"<input type='hidden' name='next' value='{next}'>"
+        "<label>Username</label><input name='username' required>"
+        "<label>Password</label><input type='password' name='password' required>"
+        "<button type='submit'>Sign in</button></form></div>",
+    )
+
+
+@app.post("/login")
+async def login_submit(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    next: str = Form("/SEO"),
+):
+    with get_connection() as conn:
+        row = conn.execute(
+            """
+            SELECT login.password_hash, employees.id, employees.is_active
+            FROM login
+            JOIN employees ON employees.id = login.employee_id
+            WHERE login.username = ?
+            """,
+            (username.strip(),),
+        ).fetchone()
+        if row and row["is_active"] and PASSWORD_CONTEXT.verify(password, row["password_hash"]):
+            request.session["user_id"] = row["id"]
+            conn.execute("UPDATE login SET last_login_at = CURRENT_TIMESTAMP WHERE employee_id = ?", (row["id"],))
+            conn.commit()
+            return RedirectResponse(next or "/SEO", status_code=302)
+
+    return render_page(
+        "Login",
+        f"<div class='card'><h1>Login</h1><p class='error'>Invalid username or password.</p>"
+        f"<form method='post' action='/login'><input type='hidden' name='next' value='{next}'>"
+        "<label>Username</label><input name='username' required>"
+        "<label>Password</label><input type='password' name='password' required>"
+        "<button type='submit'>Sign in</button></form></div>",
+    )
+
+
+@app.get("/logout")
+async def logout(request: Request):
+    request.session.clear()
+    return RedirectResponse("/login", status_code=302)
+
+
+@app.get("/onboarding", response_class=HTMLResponse)
+async def onboarding_page(token: str):
+    employee = find_employee_by_token(token.strip())
+    if employee is None:
+        raise HTTPException(status_code=404, detail="Invalid onboarding link.")
+    if not employee["is_active"]:
+        raise HTTPException(status_code=403, detail="Employee account is inactive.")
+    if is_token_expired(employee["invite_expires_at"]):
+        raise HTTPException(status_code=403, detail="This onboarding link has expired.")
+    if employee_has_login(employee["id"]):
+        return render_page("Onboarding", "<div class='card'><h1>Account already exists</h1><p class='ok'>This employee already has a login.</p><a class='button' href='/login'>Go to login</a></div>")
+
+    return render_page(
+        "Onboarding",
+        f"<div class='card'><h1>Create your account</h1><p>{employee['email']}</p>"
+        f"<form method='post' action='/onboarding'><input type='hidden' name='token' value='{token}'>"
+        "<label>Username</label><input name='username' minlength='4' maxlength='50' required>"
+        "<label>Password</label><input type='password' name='password' minlength='8' required>"
+        "<label>Confirm password</label><input type='password' name='confirm_password' minlength='8' required>"
+        "<button type='submit'>Create account</button></form></div>",
+    )
+
+
+@app.post("/onboarding", response_class=HTMLResponse)
+async def onboarding_submit(
+    token: str = Form(...),
+    username: str = Form(...),
+    password: str = Form(...),
+    confirm_password: str = Form(...),
+):
+    employee = find_employee_by_token(token.strip())
+    if employee is None:
+        raise HTTPException(status_code=404, detail="Invalid onboarding link.")
+    if not employee["is_active"]:
+        raise HTTPException(status_code=403, detail="Employee account is inactive.")
+    if is_token_expired(employee["invite_expires_at"]):
+        raise HTTPException(status_code=403, detail="This onboarding link has expired.")
+    if employee_has_login(employee["id"]):
+        return RedirectResponse("/login", status_code=302)
+    if len(username.strip()) < 4:
+        return render_page("Onboarding", "<div class='card'><p class='error'>Username must be at least 4 characters.</p><a href='javascript:history.back()'>Go back</a></div>")
+    if len(password) < 8:
+        return render_page("Onboarding", "<div class='card'><p class='error'>Password must be at least 8 characters.</p><a href='javascript:history.back()'>Go back</a></div>")
+    if password != confirm_password:
+        return render_page("Onboarding", "<div class='card'><p class='error'>Passwords do not match.</p><a href='javascript:history.back()'>Go back</a></div>")
+
+    password_hash = PASSWORD_CONTEXT.hash(password)
+    with get_connection() as conn:
+        try:
+            conn.execute(
+                "INSERT INTO login (employee_id, username, password_hash) VALUES (?, ?, ?)",
+                (employee["id"], username.strip(), password_hash),
+            )
+            conn.execute(
+                "UPDATE employees SET invite_token = NULL, invite_expires_at = NULL WHERE id = ?",
+                (employee["id"],),
+            )
+            conn.commit()
+        except Exception as exc:
+            if "UNIQUE constraint failed: login.username" in str(exc):
+                return render_page("Onboarding", "<div class='card'><p class='error'>That username is already taken.</p><a href='javascript:history.back()'>Go back</a></div>")
+            raise
+
+    return render_page("Onboarding", "<div class='card'><h1>Account created</h1><p class='ok'>Your login is ready.</p><a class='button' href='/login'>Go to login</a></div>")
+
+
+@app.get("/SEO", response_class=HTMLResponse)
+async def seo_dashboard(request: Request):
+    user = current_user(request)
+    if not user:
+        return RedirectResponse(f"/login?next={quote('/SEO')}", status_code=302)
+    return render_page(
+        "SEO",
+        f"<div class='card'><h1>SEO Dashboard</h1><p>Welcome, {user['first_name']} {user['last_name']}.</p><p>You are signed in as <strong>{user['username']}</strong>.</p><p>This route is now protected and prompts for login when visited anonymously.</p><a class='button' href='/logout'>Logout</a></div>",
+    )
 
 
 @app.post("/ask", response_model=AskResponse)
