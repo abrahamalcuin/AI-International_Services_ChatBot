@@ -554,6 +554,17 @@ def render_page(title: str, body: str) -> HTMLResponse:
     return HTMLResponse(f"<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'>{PAGE_STYLE}<title>{title} — SEO Manager</title></head><body>{body}</body></html>")
 
 
+def clean_username_name(username: str) -> str:
+    username = (username or "").strip()
+    if not username:
+        return ""
+    cleaned = re.sub(r"[_\-.]+", " ", username)
+    cleaned = re.sub(r"\d+$", "", cleaned).strip()
+    if not cleaned:
+        cleaned = username
+    return " ".join(part.capitalize() for part in cleaned.split())
+
+
 def user_display_name(user) -> str:
     if not user:
         return ""
@@ -561,9 +572,9 @@ def user_display_name(user) -> str:
     last_name = (user["last_name"] or "").strip()
     username = (user["username"] or "").strip()
     if first_name.lower() == "admin" and last_name.lower() == "user" and username:
-        return username
+        return clean_username_name(username)
     full_name = f"{first_name} {last_name}".strip()
-    return full_name or username
+    return full_name or clean_username_name(username)
 
 
 def user_first_name(user) -> str:
@@ -573,7 +584,8 @@ def user_first_name(user) -> str:
     username = (user["username"] or "").strip()
     if first_name and first_name.lower() != "admin":
         return first_name
-    return username or first_name
+    cleaned = clean_username_name(username)
+    return cleaned.split()[0] if cleaned else first_name
 
 
 def sidebar_html(active: str, user) -> str:
