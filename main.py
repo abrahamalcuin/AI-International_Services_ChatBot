@@ -414,11 +414,190 @@ def seo_dashboard_html(user) -> str:
 
 
 def seo_clients_html() -> str:
-    return "<div class='topbar'><div><h1>SEO Clients</h1><p class='muted'>Dedicated route reserved for expanded client detail views.</p></div><div class='nav'><a href='/SEO'>Dashboard</a><a class='active' href='/SEO/clients'>Clients</a><a href='/SEO/tasks'>Tasks</a><a href='/logout'>Logout</a></div></div><div class='card'><p>The live add-client workflow is on the dashboard. This page gives you a stable protected path for future detailed client pages.</p><a class='button secondary' href='/SEO'>Back to dashboard</a></div>"
+    tier_options = "".join(f"<option value='{t}'>{t}</option>" for t in SEO_SERVICE_TIERS)
+    status_options_js = json.dumps(SEO_TASK_STATUSES)
+    return f"""
+    <div class='page-shell'>
+      <div class='topbar'>
+        <div>
+          <h1>Clients</h1>
+          <p class='muted'>All onboarded SEO clients.</p>
+        </div>
+        <div class='nav'>
+          <a href='/SEO'>Dashboard</a>
+          <a class='active' href='/SEO/clients'>Clients</a>
+          <a href='/SEO/tasks'>Tasks</a>
+          <a href='/logout'>Logout</a>
+        </div>
+      </div>
+      <div class='card'>
+        <div style='display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;'>
+          <input id='clientSearch' placeholder='Search clients...' style='flex:1;min-width:200px;'>
+          <select id='tierFilter'><option value=''>All tiers</option>{tier_options}</select>
+        </div>
+        <table class='table' id='clientTable'>
+          <thead>
+            <tr>
+              <th>Company</th><th>Tier</th><th>Industry</th><th>Contact</th>
+              <th>Website</th><th>Start</th><th>Due</th><th>Tasks</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id='clientRows'></tbody>
+        </table>
+      </div>
+      <div id='clientDetailModal' style='display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;overflow:auto;'>
+        <div class='card' style='max-width:640px;margin:60px auto;position:relative;'>
+          <button onclick="document.getElementById('clientDetailModal').style.display='none'" class='secondary' style='position:absolute;top:12px;right:12px;'>Close</button>
+          <div id='clientDetailContent'></div>
+        </div>
+      </div>
+    </div>
+    <script>
+      const STATUSES = {status_options_js};
+      let allClients = [];
+      async function loadClients() {{
+        const res = await fetch('/api/seo/clients');
+        allClients = await res.json();
+        renderClients();
+      }}
+      function renderClients() {{
+        const q = document.getElementById('clientSearch').value.toLowerCase();
+        const tier = document.getElementById('tierFilter').value;
+        const filtered = allClients.filter(c =>
+          (!q || c.company_name.toLowerCase().includes(q) || (c.contact_person||'').toLowerCase().includes(q) || (c.industry||'').toLowerCase().includes(q)) &&
+          (!tier || c.service_tier === tier)
+        );
+        document.getElementById('clientRows').innerHTML = filtered.length ? filtered.map(c => `
+          <tr>
+            <td><strong>${{c.company_name}}</strong></td>
+            <td><span class='badge'>${{c.service_tier}}</span></td>
+            <td>${{c.industry || '—'}}</td>
+            <td>${{c.contact_person || '—'}}<div class='muted'>${{c.email || ''}}</div></td>
+            <td>${{c.website_url ? `<a href="${{c.website_url}}" target="_blank" rel="noreferrer">${{c.website_url.replace(/^https?:\\/\\//, '')}}</a>` : '—'}}</td>
+            <td>${{c.start_date || '—'}}</td>
+            <td>${{c.due_date || '—'}}</td>
+            <td><a href="/SEO/tasks?client_id=${{c.id}}" class="button secondary" style="font-size:12px;padding:6px 10px;">View tasks</a></td>
+            <td>
+              <button onclick="showClientDetail(${{c.id}})" style='font-size:12px;padding:6px 10px;background:#eef2ff;color:#111;border:0;border-radius:8px;cursor:pointer;'>Details</button>
+              <button onclick="deleteClient(${{c.id}}, '${{c.company_name.replace(/'/g, \"\\\\'\")}}')" style='font-size:12px;padding:6px 10px;background:#fee2e2;color:#b91c1c;border:0;border-radius:8px;cursor:pointer;margin-left:4px;'>Delete</button>
+            </td>
+          </tr>`).join('') : "<tr><td colspan='9' class='muted'>No clients match.</td></tr>";
+      }}
+      async function showClientDetail(id) {{
+        const res = await fetch('/api/seo/clients/' + id);
+        const c = await res.json();
+        document.getElementById('clientDetailContent').innerHTML = `
+          <h2>${{c.company_name}}</h2>
+          <p class='muted'>Service tier: <strong>${{c.service_tier}}</strong></p>
+          <table class='table'>
+            ${{[['Industry', c.industry], ['Contact', c.contact_person], ['Email', c.email], ['Phone', c.phone],
+               ['Website', c.website_url], ['Start', c.start_date], ['Due', c.due_date],
+               ['Notes', c.notes], ['Credentials', c.credentials ? '••••••' : '—']].map(([k, v]) =>
+              `<tr><th style='width:120px'>${{k}}</th><td>${{v || '—'}}</td></tr>`).join('')}}
+          </table>`;
+        document.getElementById('clientDetailModal').style.display = 'block';
+      }}
+      async function deleteClient(id, name) {{
+        if (!confirm('Delete ' + name + ' and all their tasks? This cannot be undone.')) return;
+        const res = await fetch('/api/seo/clients/' + id, {{ method: 'DELETE' }});
+        if (res.ok) {{ await loadClients(); }} else {{ alert('Delete failed.'); }}
+      }}
+      document.getElementById('clientSearch').addEventListener('input', renderClients);
+      document.getElementById('tierFilter').addEventListener('change', renderClients);
+      loadClients();
+    </script>
+    """
 
 
 def seo_tasks_html() -> str:
-    return "<div class='topbar'><div><h1>SEO Tasks</h1><p class='muted'>Dedicated route reserved for deeper task board and filtering views.</p></div><div class='nav'><a href='/SEO'>Dashboard</a><a href='/SEO/clients'>Clients</a><a class='active' href='/SEO/tasks'>Tasks</a><a href='/logout'>Logout</a></div></div><div class='card'><p>Use the dashboard to update task statuses right now. This page exists as a protected multi-page entry point for future expansion.</p><a class='button secondary' href='/SEO'>Back to dashboard</a></div>"
+    category_options = "".join(f"<option value='{c}'>{c.title()}</option>" for c in ["keyword research", "on-page", "off-page", "technical", "extras"])
+    status_options = "".join(f"<option value='{s}'>{s}</option>" for s in SEO_TASK_STATUSES)
+    status_options_js = json.dumps(SEO_TASK_STATUSES)
+    tier_options = "".join(f"<option value='{t}'>{t}</option>" for t in SEO_SERVICE_TIERS)
+    return f"""
+    <div class='page-shell'>
+      <div class='topbar'>
+        <div>
+          <h1>Tasks</h1>
+          <p class='muted'>All client tasks across categories and tiers.</p>
+        </div>
+        <div class='nav'>
+          <a href='/SEO'>Dashboard</a>
+          <a href='/SEO/clients'>Clients</a>
+          <a class='active' href='/SEO/tasks'>Tasks</a>
+          <a href='/logout'>Logout</a>
+        </div>
+      </div>
+      <div class='card'>
+        <div style='display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;'>
+          <input id='taskSearch' placeholder='Search tasks or clients...' style='flex:1;min-width:200px;'>
+          <select id='catFilter'><option value=''>All categories</option>{category_options}</select>
+          <select id='statusFilter'><option value=''>All statuses</option>{status_options}</select>
+          <select id='tierFilter2'><option value=''>All tiers</option>{tier_options}</select>
+        </div>
+        <table class='table' id='taskTable'>
+          <thead>
+            <tr><th>Task</th><th>Client</th><th>Category</th><th>Status</th><th>Due</th><th>Update</th></tr>
+          </thead>
+          <tbody id='taskRows'></tbody>
+        </table>
+      </div>
+    </div>
+    <script>
+      const STATUSES = {status_options_js};
+      let allTasks = [];
+      async function loadTasks() {{
+        const params = new URLSearchParams(window.location.search);
+        const res = await fetch('/api/seo/tasks');
+        allTasks = await res.json();
+        const clientId = params.get('client_id');
+        if (clientId) {{
+          allTasks = allTasks.filter(t => String(t.client_id) === clientId);
+        }}
+        renderTasks();
+      }}
+      function renderTasks() {{
+        const q = document.getElementById('taskSearch').value.toLowerCase();
+        const cat = document.getElementById('catFilter').value;
+        const stat = document.getElementById('statusFilter').value;
+        const tier = document.getElementById('tierFilter2').value;
+        const filtered = allTasks.filter(t =>
+          (!q || t.task_name.toLowerCase().includes(q) || (t.company_name||'').toLowerCase().includes(q)) &&
+          (!cat || t.category === cat) &&
+          (!stat || t.status === stat)
+        );
+        document.getElementById('taskRows').innerHTML = filtered.length ? filtered.map(t => `
+          <tr>
+            <td><strong>${{t.task_name}}</strong><div class='muted' style='font-size:12px;'>${{t.task_description || ''}}</div></td>
+            <td>${{t.company_name}}</td>
+            <td><span class='badge'>${{t.category}}</span></td>
+            <td><span class='badge' style='background:${{statusColor(t.status)}}'>${{t.status}}</span></td>
+            <td>${{t.due_date || '—'}}</td>
+            <td><select onchange="updateStatus(${{t.id}}, this.value)">${{STATUSES.map(s => `<option value="${{s}}" ${{s===t.status?'selected':''}}>${{s}}</option>`).join('')}}</select></td>
+          </tr>`).join('') : "<tr><td colspan='6' class='muted'>No tasks match.</td></tr>";
+      }}
+      function statusColor(s) {{
+        return {{
+          'Not Started': '#f1f5f9',
+          'In Progress': '#e0f2fe',
+          'Done': '#dcfce7',
+          'Blocked': '#fee2e2'
+        }}[s] || '#f1f5f9';
+      }}
+      async function updateStatus(id, status) {{
+        const res = await fetch('/api/seo/tasks/' + id, {{
+          method: 'PATCH',
+          headers: {{ 'Content-Type': 'application/json' }},
+          body: JSON.stringify({{ status }})
+        }});
+        if (!res.ok) {{ alert('Update failed'); return; }}
+        await loadTasks();
+      }}
+      ['taskSearch', 'catFilter', 'statusFilter', 'tierFilter2'].forEach(id => document.getElementById(id).addEventListener('change', renderTasks));
+      document.getElementById('taskSearch').addEventListener('input', renderTasks);
+      loadTasks();
+    </script>
+    """
 
 
 app = FastAPI(
@@ -601,6 +780,28 @@ async def create_seo_client(request: Request, payload: SEOClientCreate):
     data = dict(client)
     data["generated_task_count"] = generated_task_count
     return data
+
+
+@app.get("/api/seo/clients/{client_id}")
+async def get_seo_client(client_id: int, request: Request):
+    require_user(request)
+    with get_connection() as conn:
+        row = conn.execute("SELECT * FROM seo_clients WHERE id = ?", (client_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Client not found")
+        return dict(row)
+
+
+@app.delete("/api/seo/clients/{client_id}")
+async def delete_seo_client(client_id: int, request: Request):
+    require_user(request)
+    with get_connection() as conn:
+        existing = conn.execute("SELECT id FROM seo_clients WHERE id = ?", (client_id,)).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Client not found")
+        conn.execute("DELETE FROM seo_clients WHERE id = ?", (client_id,))
+        conn.commit()
+    return {"ok": True}
 
 
 @app.get("/api/seo/tasks")
