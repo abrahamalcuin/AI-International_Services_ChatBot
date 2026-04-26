@@ -30,6 +30,8 @@ MAX_CONTEXT_CHUNKS = 25
 VALID_CATEGORIES = {"incoming", "current", "graduating"}
 PASSWORD_CONTEXT = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 SESSION_SECRET = os.getenv("SESSION_SECRET", "change-this-in-render")
+SEO_TASK_STATUSES = ["Not Started", "In Progress", "Done", "Blocked"]
+SEO_SERVICE_TIERS = ["Tier 1", "Tier 2", "Tier 3"]
 
 SYSTEM_PROMPT = """You are BYU-Idaho AdvisorBot, a helpful, accurate, and concise student support assistant.
 
@@ -40,39 +42,40 @@ You MUST follow these rules:
    “I could not find this information in my database, please reach out to international@byui.edu or (208) 496-1320.”
 3. Never invent rules, deadlines, dates, or policies.
 4. When relevant, include the links provided in the document chunks.
-5. Answer the question as concisely as possible call it the "Short Answer" and keep it short without losing important information, 
-after this summarize other related information in the md into bullet points and ask if they would like to learn more about it. Call this the "Long Answer"
-5. Speak clearly, simply, and professionally.
-6. Tailor the tone to a student asking for help.
-7. Do not reference the concept of “chunks” or “embeddings.”
-8. Do not reference the retrieval system.
-9. Do not assume anything not explicitly stated in the documents.
-10. If a question spans multiple topics, combine the relevant information logically.
-11. If there are tips or warnings in the documents, include them briefly.
-12. Keep answers detailed, include anything relevant in the md file.
-13. Provide the link of the source with “This response is AI generated, please verify information through this link:{insert source link in yaml or sources}  “ 
-14. Provide relevant topics that haven’t been tackled and ask the user through bullet points and ask the user if they would like to know more about any of them. 
-15. If there are any tables, polish them and make them look clean.
-16. Only provide the source at the end, do not do parenthetical citations. 
-
-
-Always begin reasoning from the content of the provided documents. Use them as your only
-knowledge source for final answers.
-
-If the user requests something outside the document scope (e.g., medical, financial advice,
-or policy speculation), politely decline and direct them to official BYU-Idaho offices.
-
+5. Answer the question as concisely as possible, call it the Short Answer, then summarize related info in bullet points and ask if they want more. Call it the Long Answer.
+6. Speak clearly, simply, and professionally.
+7. Do not reference chunks, embeddings, or the retrieval system.
+8. Do not assume anything not explicitly stated in the documents.
+9. If there are tips or warnings, include them briefly.
+10. Only provide the source at the end.
 """
 
 PAGE_STYLE = """
 <style>
-body { font-family: Arial, sans-serif; max-width: 520px; margin: 40px auto; padding: 16px; line-height: 1.5; }
+body { font-family: Arial, sans-serif; max-width: 1180px; margin: 24px auto; padding: 16px; line-height: 1.5; background: #f7f8fb; color: #1f2937; }
+a { color: inherit; }
 form { display: grid; gap: 12px; }
-input { padding: 10px; font-size: 16px; }
-button, a.button { padding: 12px; font-size: 16px; cursor: pointer; text-decoration: none; display: inline-block; }
+input, textarea, select { width: 100%; padding: 10px; font-size: 14px; border: 1px solid #d1d5db; border-radius: 10px; }
+textarea { min-height: 90px; resize: vertical; }
+button, a.button { padding: 10px 14px; font-size: 14px; cursor: pointer; text-decoration: none; display: inline-block; border-radius: 10px; border: 0; background: #111827; color: #fff; }
+button.secondary, a.secondary { background: #e5e7eb; color: #111827; }
 .error { color: #b00020; }
 .ok { color: #0a7a2f; }
-.card { border: 1px solid #ddd; border-radius: 10px; padding: 18px; box-shadow: 0 2px 10px rgba(0,0,0,.06); }
+.card { border: 1px solid #e5e7eb; border-radius: 16px; padding: 18px; box-shadow: 0 8px 30px rgba(0,0,0,.04); background: white; }
+.grid { display: grid; gap: 16px; }
+.grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.topbar { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:20px; }
+.nav { display:flex; gap:10px; flex-wrap: wrap; }
+.nav a { padding: 10px 14px; border-radius: 999px; text-decoration:none; background:#fff; border:1px solid #e5e7eb; }
+.nav a.active { background:#111827; color:#fff; }
+.table { width:100%; border-collapse: collapse; }
+.table th, .table td { padding: 10px; border-bottom:1px solid #e5e7eb; text-align:left; vertical-align: top; }
+.badge { display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; background:#eef2ff; }
+.metric { padding:16px; border-radius:14px; background:#f8fafc; border:1px solid #e5e7eb; }
+.muted { color:#6b7280; }
+.page-shell { display:grid; gap:18px; }
+@media (max-width: 880px) { .grid.two, .grid.three { grid-template-columns: 1fr; } }
 </style>
 """
 
@@ -86,17 +89,9 @@ class SourceChunk(BaseModel):
 
 
 class AskRequest(BaseModel):
-    question: str = Field(..., min_length=5, description="Student's natural language question.")
-    category: Optional[str] = Field(
-        default=None,
-        description="Optional focus area: incoming, current, or graduating.",
-    )
-    top_k: int = Field(
-        default=MAX_CONTEXT_CHUNKS,
-        ge=1,
-        le=MAX_CONTEXT_CHUNKS,
-        description="How many context chunks to send to Gemini (capped at 25).",
-    )
+    question: str = Field(..., min_length=5)
+    category: Optional[str] = Field(default=None)
+    top_k: int = Field(default=MAX_CONTEXT_CHUNKS, ge=1, le=MAX_CONTEXT_CHUNKS)
 
     @validator("category")
     def normalize_category(cls, value: Optional[str]) -> Optional[str]:
@@ -111,6 +106,38 @@ class AskRequest(BaseModel):
 class AskResponse(BaseModel):
     answer: str
     sources: List[SourceChunk]
+
+
+class SEOClientCreate(BaseModel):
+    company_name: str = Field(..., min_length=2)
+    industry: Optional[str] = None
+    credentials: Optional[str] = None
+    contact_person: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    website_url: Optional[str] = None
+    notes: Optional[str] = None
+    start_date: Optional[str] = None
+    due_date: Optional[str] = None
+    service_tier: str
+
+    @validator("service_tier")
+    def validate_service_tier(cls, value: str) -> str:
+        value = value.strip()
+        if value not in SEO_SERVICE_TIERS:
+            raise ValueError(f"service_tier must be one of {SEO_SERVICE_TIERS}")
+        return value
+
+
+class SEOTaskStatusUpdate(BaseModel):
+    status: str
+
+    @validator("status")
+    def validate_status(cls, value: str) -> str:
+        value = value.strip()
+        if value not in SEO_TASK_STATUSES:
+            raise ValueError(f"status must be one of {SEO_TASK_STATUSES}")
+        return value
 
 
 @dataclass
@@ -139,29 +166,21 @@ def normalize_vector(vector: Sequence[float]) -> np.ndarray:
 
 def load_embedding_index(path: Path) -> List[EmbeddingRecord]:
     if not path.exists():
-        raise FileNotFoundError(
-            f"Embeddings file '{path}' was not found. Run build_embeddings.py first."
-        )
-
+        raise FileNotFoundError(f"Embeddings file '{path}' was not found. Run build_embeddings.py first.")
     data = json.loads(path.read_text(encoding="utf-8"))
     records = []
     for record in data.get("records", []):
-        normalized_vector = normalize_vector(record["embedding"])
         records.append(
             EmbeddingRecord(
                 id=record["id"],
                 category=record["category"].lower(),
                 source=record["source"],
                 text=record["text"],
-                vector=normalized_vector,
+                vector=normalize_vector(record["embedding"]),
             )
         )
-
     if not records:
-        raise RuntimeError(
-            f"No embeddings found inside '{path}'. Add Markdown files and rebuild the index."
-        )
-
+        raise RuntimeError(f"No embeddings found inside '{path}'.")
     return records
 
 
@@ -171,11 +190,7 @@ class GeminiClient:
         self.generation_model = genai.GenerativeModel(GENERATION_MODEL_NAME)
 
     def embed(self, text: str, task_type: str) -> np.ndarray:
-        response = genai.embed_content(
-            model=EMBEDDING_MODEL_NAME,
-            content=text,
-            task_type=task_type,
-        )
+        response = genai.embed_content(model=EMBEDDING_MODEL_NAME, content=text, task_type=task_type)
         embedding = response.get("embedding")
         if not embedding:
             raise RuntimeError("Gemini did not return an embedding vector.")
@@ -195,9 +210,7 @@ class GeminiClient:
         return response.text.strip()
 
 
-def rank_chunks(
-    query_vector: np.ndarray, category: Optional[str], top_k: int
-) -> List[Tuple[float, EmbeddingRecord]]:
+def rank_chunks(query_vector: np.ndarray, category: Optional[str], top_k: int) -> List[Tuple[float, EmbeddingRecord]]:
     scored: List[Tuple[float, EmbeddingRecord]] = []
     for record in EMBEDDING_INDEX:
         score = float(np.dot(query_vector, record.vector))
@@ -209,19 +222,11 @@ def rank_chunks(
 
 
 def build_prompt(question: str, scored_chunks: List[Tuple[float, EmbeddingRecord]]) -> str:
-    context_sections = []
+    sections = []
     for idx, (score, record) in enumerate(scored_chunks, start=1):
-        context_sections.append(
-            f"Chunk {idx} | Category: {record.category} | Source: {record.source} | Score: {score:.4f}\n{record.text}"
-        )
-
-    context_block = "\n\n---\n\n".join(context_sections)
-    return (
-        f"{SYSTEM_PROMPT}\n\n"
-        f"Context:\n{context_block}\n\n"
-        f"User question: {question.strip()}\n\n"
-        "Final answer (reference the relevant chunks by mentioning their sources):"
-    )
+        sections.append(f"Chunk {idx} | Category: {record.category} | Source: {record.source} | Score: {score:.4f}\n{record.text}")
+    context_block = "\n\n---\n\n".join(sections)
+    return f"{SYSTEM_PROMPT}\n\nContext:\n{context_block}\n\nUser question: {question.strip()}\n\nFinal answer:" 
 
 
 def render_page(title: str, body: str) -> HTMLResponse:
@@ -244,19 +249,184 @@ def current_user(request: Request):
         ).fetchone()
 
 
+def require_user(request: Request):
+    user = current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+    return user
+
+
+def seo_metrics() -> dict:
+    with get_connection() as conn:
+        return {
+            "client_count": conn.execute("SELECT COUNT(*) FROM seo_clients").fetchone()[0],
+            "task_count": conn.execute("SELECT COUNT(*) FROM seo_client_tasks").fetchone()[0],
+            "blocked_count": conn.execute("SELECT COUNT(*) FROM seo_client_tasks WHERE status = 'Blocked'").fetchone()[0],
+            "done_count": conn.execute("SELECT COUNT(*) FROM seo_client_tasks WHERE status = 'Done'").fetchone()[0],
+        }
+
+
+def create_client_tasks(conn, client_id: int, service_tier: str, due_date: Optional[str]) -> int:
+    templates = conn.execute(
+        """
+        SELECT id, category, task_name, task_description, sort_order
+        FROM seo_task_templates
+        WHERE service_tier = ? AND is_active = 1
+        ORDER BY sort_order, id
+        """,
+        (service_tier,),
+    ).fetchall()
+    for template in templates:
+        conn.execute(
+            """
+            INSERT INTO seo_client_tasks
+            (client_id, template_id, category, task_name, task_description, sort_order, due_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (client_id, template["id"], template["category"], template["task_name"], template["task_description"], template["sort_order"], due_date),
+        )
+    return len(templates)
+
+
+def seo_dashboard_html(user) -> str:
+    metrics = seo_metrics()
+    tier_options = "".join(f"<option value='{tier}'>{tier}</option>" for tier in SEO_SERVICE_TIERS)
+    status_options_js = json.dumps(SEO_TASK_STATUSES)
+    return f"""
+    <div class='page-shell'>
+      <div class='topbar'>
+        <div>
+          <h1>SEO Project Manager</h1>
+          <p class='muted'>Welcome, {user['first_name']} {user['last_name']}.</p>
+          <p class='muted'>Signed in as <strong>{user['username']}</strong> ({user['role']}).</p>
+        </div>
+        <div class='nav'>
+          <a class='active' href='/SEO'>Dashboard</a>
+          <a href='/SEO/clients'>Clients</a>
+          <a href='/SEO/tasks'>Tasks</a>
+          <a href='/logout'>Logout</a>
+        </div>
+      </div>
+      <div class='grid three'>
+        <div class='metric'><div class='muted'>Clients</div><h2 id='metricClients'>{metrics['client_count']}</h2></div>
+        <div class='metric'><div class='muted'>Total tasks</div><h2 id='metricOpen'>{metrics['task_count']}</h2></div>
+        <div class='metric'><div class='muted'>Blocked tasks</div><h2 id='metricBlocked'>{metrics['blocked_count']}</h2></div>
+      </div>
+      <div class='grid two'>
+        <div class='card'>
+          <h2>Add client</h2>
+          <form id='clientForm'>
+            <div class='grid two'>
+              <label>Company name<input name='company_name' required></label>
+              <label>Industry<input name='industry'></label>
+              <label>Contact person<input name='contact_person'></label>
+              <label>Email<input name='email' type='email'></label>
+              <label>Phone<input name='phone'></label>
+              <label>Website URL<input name='website_url' type='url'></label>
+              <label>Start date<input name='start_date' type='date'></label>
+              <label>Due date<input name='due_date' type='date'></label>
+              <label>Service tier<select name='service_tier'>{tier_options}</select></label>
+            </div>
+            <label>WordPress / website credentials<textarea name='credentials' placeholder='Stored here because it was a required field. Consider encrypted storage later.'></textarea></label>
+            <label>Notes<textarea name='notes'></textarea></label>
+            <button type='submit'>Create client and tasks</button>
+          </form>
+        </div>
+        <div class='card'>
+          <h2>Template summary</h2>
+          <p class='muted'>Each tier uses normalized, deduplicated task templates.</p>
+          <div id='templateSummary' class='grid'></div>
+        </div>
+      </div>
+      <div class='grid two'>
+        <div class='card'>
+          <h2>Clients</h2>
+          <table class='table'>
+            <thead><tr><th>Client</th><th>Tier</th><th>Start</th><th>Due</th><th>Contact</th></tr></thead>
+            <tbody id='clientList'></tbody>
+          </table>
+        </div>
+        <div class='card'>
+          <h2>Recent tasks</h2>
+          <table class='table'>
+            <thead><tr><th>Task</th><th>Category</th><th>Status</th><th>Update</th></tr></thead>
+            <tbody id='taskList'></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <script>
+      const STATUSES = {status_options_js};
+      async function loadDashboard() {{
+        const [clientsRes, tasksRes, templatesRes] = await Promise.all([
+          fetch('/api/seo/clients'),
+          fetch('/api/seo/tasks'),
+          fetch('/api/seo/templates')
+        ]);
+        const clients = await clientsRes.json();
+        const tasks = await tasksRes.json();
+        const templates = await templatesRes.json();
+        document.getElementById('metricClients').textContent = clients.length;
+        document.getElementById('metricOpen').textContent = tasks.length;
+        document.getElementById('metricBlocked').textContent = tasks.filter(t => t.status === 'Blocked').length;
+        document.getElementById('clientList').innerHTML = clients.length ? clients.map(client => `
+          <tr>
+            <td><strong>${{client.company_name}}</strong><div class='muted'>${{client.industry || 'Unspecified'}}</div></td>
+            <td>${{client.service_tier}}</td>
+            <td>${{client.start_date || '—'}}</td>
+            <td>${{client.due_date || '—'}}</td>
+            <td>${{client.contact_person || '—'}}<div class='muted'>${{client.email || ''}}</div></td>
+          </tr>`).join('') : "<tr><td colspan='5' class='muted'>No clients yet.</td></tr>";
+        document.getElementById('taskList').innerHTML = tasks.length ? tasks.slice(0, 10).map(task => `
+          <tr>
+            <td><strong>${{task.task_name}}</strong><div class='muted'>${{task.company_name}}</div></td>
+            <td>${{task.category}}</td>
+            <td><span class='badge'>${{task.status}}</span></td>
+            <td><select onchange="updateTaskStatus(${{task.id}}, this.value)">${{STATUSES.map(status => `<option value="${{status}}" ${{status === task.status ? 'selected' : ''}}>${{status}}</option>`).join('')}}</select></td>
+          </tr>`).join('') : "<tr><td colspan='4' class='muted'>No tasks yet.</td></tr>";
+        document.getElementById('templateSummary').innerHTML = templates.map(item => `<div class='metric'><strong>${{item.service_tier}}</strong><div class='muted'>${{item.task_count}} templated tasks</div></div>`).join('');
+      }}
+      async function createClient(event) {{
+        event.preventDefault();
+        const payload = Object.fromEntries(new FormData(event.target).entries());
+        const res = await fetch('/api/seo/clients', {{ method: 'POST', headers: {{ 'Content-Type': 'application/json' }}, body: JSON.stringify(payload) }});
+        const data = await res.json();
+        if (!res.ok) {{ alert(data.detail || 'Unable to create client'); return; }}
+        event.target.reset();
+        alert(`Created ${{data.company_name}} and generated ${{data.generated_task_count}} tasks.`);
+        await loadDashboard();
+      }}
+      async function updateTaskStatus(taskId, status) {{
+        const res = await fetch(`/api/seo/tasks/${{taskId}}`, {{ method: 'PATCH', headers: {{ 'Content-Type': 'application/json' }}, body: JSON.stringify({{ status }}) }});
+        if (!res.ok) {{
+          const data = await res.json();
+          alert(data.detail || 'Unable to update task');
+          return;
+        }}
+        await loadDashboard();
+      }}
+      document.addEventListener('DOMContentLoaded', () => {{
+        document.getElementById('clientForm').addEventListener('submit', createClient);
+        loadDashboard();
+      }});
+    </script>
+    """
+
+
+def seo_clients_html() -> str:
+    return "<div class='topbar'><div><h1>SEO Clients</h1><p class='muted'>Dedicated route reserved for expanded client detail views.</p></div><div class='nav'><a href='/SEO'>Dashboard</a><a class='active' href='/SEO/clients'>Clients</a><a href='/SEO/tasks'>Tasks</a><a href='/logout'>Logout</a></div></div><div class='card'><p>The live add-client workflow is on the dashboard. This page gives you a stable protected path for future detailed client pages.</p><a class='button secondary' href='/SEO'>Back to dashboard</a></div>"
+
+
+def seo_tasks_html() -> str:
+    return "<div class='topbar'><div><h1>SEO Tasks</h1><p class='muted'>Dedicated route reserved for deeper task board and filtering views.</p></div><div class='nav'><a href='/SEO'>Dashboard</a><a href='/SEO/clients'>Clients</a><a class='active' href='/SEO/tasks'>Tasks</a><a href='/logout'>Logout</a></div></div><div class='card'><p>Use the dashboard to update task statuses right now. This page exists as a protected multi-page entry point for future expansion.</p><a class='button secondary' href='/SEO'>Back to dashboard</a></div>"
+
+
 app = FastAPI(
     title="BYU-Idaho Student Advisor RAG API",
-    version="1.0.1",
+    version="1.2.0",
     description="Retrieval-Augmented Generation backend that powers the BYU-Idaho chatbot.",
 )
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=False, allow_methods=["*"], allow_headers=["*"])
 app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax", https_only=True)
 
 EMBEDDING_INDEX: List[EmbeddingRecord] = []
@@ -281,23 +451,11 @@ async def login_page(request: Request, next: str = "/SEO") -> HTMLResponse:
     user = current_user(request)
     if user:
         return RedirectResponse(next, status_code=302)
-    return render_page(
-        "Login",
-        f"<div class='card'><h1>Login</h1><form method='post' action='/login'>"
-        f"<input type='hidden' name='next' value='{next}'>"
-        "<label>Username</label><input name='username' required>"
-        "<label>Password</label><input type='password' name='password' required>"
-        "<button type='submit'>Sign in</button></form></div>",
-    )
+    return render_page("Login", f"<div class='card'><h1>Login</h1><form method='post' action='/login'><input type='hidden' name='next' value='{next}'><label>Username</label><input name='username' required><label>Password</label><input type='password' name='password' required><button type='submit'>Sign in</button></form></div>")
 
 
 @app.post("/login")
-async def login_submit(
-    request: Request,
-    username: str = Form(...),
-    password: str = Form(...),
-    next: str = Form("/SEO"),
-):
+async def login_submit(request: Request, username: str = Form(...), password: str = Form(...), next: str = Form("/SEO")):
     with get_connection() as conn:
         row = conn.execute(
             """
@@ -313,15 +471,7 @@ async def login_submit(
             conn.execute("UPDATE login SET last_login_at = CURRENT_TIMESTAMP WHERE employee_id = ?", (row["id"],))
             conn.commit()
             return RedirectResponse(next or "/SEO", status_code=302)
-
-    return render_page(
-        "Login",
-        f"<div class='card'><h1>Login</h1><p class='error'>Invalid username or password.</p>"
-        f"<form method='post' action='/login'><input type='hidden' name='next' value='{next}'>"
-        "<label>Username</label><input name='username' required>"
-        "<label>Password</label><input type='password' name='password' required>"
-        "<button type='submit'>Sign in</button></form></div>",
-    )
+    return render_page("Login", f"<div class='card'><h1>Login</h1><p class='error'>Invalid username or password.</p><form method='post' action='/login'><input type='hidden' name='next' value='{next}'><label>Username</label><input name='username' required><label>Password</label><input type='password' name='password' required><button type='submit'>Sign in</button></form></div>")
 
 
 @app.get("/logout")
@@ -341,25 +491,11 @@ async def onboarding_page(token: str):
         raise HTTPException(status_code=403, detail="This onboarding link has expired.")
     if employee_has_login(employee["id"]):
         return render_page("Onboarding", "<div class='card'><h1>Account already exists</h1><p class='ok'>This employee already has a login.</p><a class='button' href='/login'>Go to login</a></div>")
-
-    return render_page(
-        "Onboarding",
-        f"<div class='card'><h1>Create your account</h1><p>{employee['email']}</p>"
-        f"<form method='post' action='/onboarding'><input type='hidden' name='token' value='{token}'>"
-        "<label>Username</label><input name='username' minlength='4' maxlength='50' required>"
-        "<label>Password</label><input type='password' name='password' minlength='8' required>"
-        "<label>Confirm password</label><input type='password' name='confirm_password' minlength='8' required>"
-        "<button type='submit'>Create account</button></form></div>",
-    )
+    return render_page("Onboarding", f"<div class='card'><h1>Create your account</h1><p>{employee['email']}</p><form method='post' action='/onboarding'><input type='hidden' name='token' value='{token}'><label>Username</label><input name='username' minlength='4' maxlength='50' required><label>Password</label><input type='password' name='password' minlength='8' required><label>Confirm password</label><input type='password' name='confirm_password' minlength='8' required><button type='submit'>Create account</button></form></div>")
 
 
 @app.post("/onboarding", response_class=HTMLResponse)
-async def onboarding_submit(
-    token: str = Form(...),
-    username: str = Form(...),
-    password: str = Form(...),
-    confirm_password: str = Form(...),
-):
+async def onboarding_submit(token: str = Form(...), username: str = Form(...), password: str = Form(...), confirm_password: str = Form(...)):
     employee = find_employee_by_token(token.strip())
     if employee is None:
         raise HTTPException(status_code=404, detail="Invalid onboarding link.")
@@ -375,7 +511,6 @@ async def onboarding_submit(
         return render_page("Onboarding", "<div class='card'><p class='error'>Password must be at least 8 characters.</p><a href='javascript:history.back()'>Go back</a></div>")
     if password != confirm_password:
         return render_page("Onboarding", "<div class='card'><p class='error'>Passwords do not match.</p><a href='javascript:history.back()'>Go back</a></div>")
-
     password_hash = PASSWORD_CONTEXT.hash(password)
     with get_connection() as conn:
         try:
@@ -383,17 +518,23 @@ async def onboarding_submit(
                 "INSERT INTO login (employee_id, username, password_hash, role) VALUES (?, ?, ?, ?)",
                 (employee["id"], username.strip(), password_hash, employee["desired_role"]),
             )
-            conn.execute(
-                "UPDATE employees SET invite_token = NULL, invite_expires_at = NULL WHERE id = ?",
-                (employee["id"],),
-            )
+            conn.execute("UPDATE employees SET invite_token = NULL, invite_expires_at = NULL WHERE id = ?", (employee["id"],))
             conn.commit()
         except Exception as exc:
             if "UNIQUE constraint failed: login.username" in str(exc):
                 return render_page("Onboarding", "<div class='card'><p class='error'>That username is already taken.</p><a href='javascript:history.back()'>Go back</a></div>")
             raise
-
     return render_page("Onboarding", "<div class='card'><h1>Account created</h1><p class='ok'>Your login is ready.</p><a class='button' href='/login'>Go to login</a></div>")
+
+
+@app.get("/")
+async def root():
+    return {"ok": True, "service": "byui-student-advisor-api", "version": "1.2.0"}
+
+
+@app.get("/health")
+async def health():
+    return {"ok": True, "chatbotReady": GEMINI_CLIENT is not None and bool(EMBEDDING_INDEX), "authReady": True}
 
 
 @app.get("/SEO", response_class=HTMLResponse)
@@ -401,56 +542,116 @@ async def seo_dashboard(request: Request):
     user = current_user(request)
     if not user:
         return RedirectResponse(f"/login?next={quote('/SEO')}", status_code=302)
-    return render_page(
-        "SEO",
-        f"<div class='card'><h1>SEO Dashboard</h1><p>Welcome, {user['first_name']} {user['last_name']}.</p><p>You are signed in as <strong>{user['username']}</strong>.</p><p>Your role is <strong>{user['role']}</strong>.</p><p>This route is now protected and prompts for login when visited anonymously.</p><a class='button' href='/logout'>Logout</a></div>",
-    )
+    return render_page("SEO Dashboard", seo_dashboard_html(user))
 
 
-@app.get("/")
-async def root():
-    return {"ok": True, "service": "byui-student-advisor-api", "version": "1.0.1"}
+@app.get("/SEO/clients", response_class=HTMLResponse)
+async def seo_clients_page(request: Request):
+    user = current_user(request)
+    if not user:
+        return RedirectResponse(f"/login?next={quote('/SEO/clients')}", status_code=302)
+    return render_page("SEO Clients", seo_clients_html())
 
 
-@app.get("/health")
-async def health():
-    return {
-        "ok": True,
-        "chatbotReady": GEMINI_CLIENT is not None and bool(EMBEDDING_INDEX),
-        "authReady": True,
-    }
+@app.get("/SEO/tasks", response_class=HTMLResponse)
+async def seo_tasks_page(request: Request):
+    user = current_user(request)
+    if not user:
+        return RedirectResponse(f"/login?next={quote('/SEO/tasks')}", status_code=302)
+    return render_page("SEO Tasks", seo_tasks_html())
+
+
+@app.get("/api/seo/templates")
+async def list_seo_templates(request: Request):
+    require_user(request)
+    with get_connection() as conn:
+        rows = conn.execute("SELECT service_tier, COUNT(*) AS task_count FROM seo_task_templates WHERE is_active = 1 GROUP BY service_tier ORDER BY service_tier").fetchall()
+        return [dict(row) for row in rows]
+
+
+@app.get("/api/seo/clients")
+async def list_seo_clients(request: Request):
+    require_user(request)
+    with get_connection() as conn:
+        rows = conn.execute("SELECT * FROM seo_clients ORDER BY created_at DESC, id DESC").fetchall()
+        return [dict(row) for row in rows]
+
+
+@app.post("/api/seo/clients")
+async def create_seo_client(request: Request, payload: SEOClientCreate):
+    user = require_user(request)
+    with get_connection() as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO seo_clients (
+                company_name, industry, credentials, contact_person, email, phone,
+                website_url, notes, start_date, due_date, service_tier, created_by_employee_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                payload.company_name.strip(), payload.industry, payload.credentials, payload.contact_person,
+                payload.email, payload.phone, payload.website_url, payload.notes,
+                payload.start_date, payload.due_date, payload.service_tier, user["id"],
+            ),
+        )
+        client_id = cursor.lastrowid
+        generated_task_count = create_client_tasks(conn, client_id, payload.service_tier, payload.due_date)
+        conn.commit()
+        client = conn.execute("SELECT * FROM seo_clients WHERE id = ?", (client_id,)).fetchone()
+    data = dict(client)
+    data["generated_task_count"] = generated_task_count
+    return data
+
+
+@app.get("/api/seo/tasks")
+async def list_seo_tasks(request: Request):
+    require_user(request)
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT seo_client_tasks.*, seo_clients.company_name
+            FROM seo_client_tasks
+            JOIN seo_clients ON seo_clients.id = seo_client_tasks.client_id
+            ORDER BY CASE seo_client_tasks.status
+                WHEN 'Blocked' THEN 1
+                WHEN 'In Progress' THEN 2
+                WHEN 'Not Started' THEN 3
+                ELSE 4 END,
+                seo_client_tasks.sort_order,
+                seo_client_tasks.id
+            """
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+@app.patch("/api/seo/tasks/{task_id}")
+async def update_seo_task(task_id: int, request: Request, payload: SEOTaskStatusUpdate):
+    require_user(request)
+    with get_connection() as conn:
+        existing = conn.execute("SELECT id FROM seo_client_tasks WHERE id = ?", (task_id,)).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Task not found")
+        conn.execute(
+            "UPDATE seo_client_tasks SET status = ?, completed_at = CASE WHEN ? = 'Done' THEN CURRENT_TIMESTAMP ELSE NULL END, updated_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (payload.status, payload.status, task_id),
+        )
+        conn.commit()
+        row = conn.execute("SELECT * FROM seo_client_tasks WHERE id = ?", (task_id,)).fetchone()
+        return dict(row)
 
 
 @app.post("/ask", response_model=AskResponse)
 async def ask(payload: AskRequest) -> AskResponse:
     if GEMINI_CLIENT is None or not EMBEDDING_INDEX:
         raise HTTPException(status_code=503, detail="Chatbot features are unavailable right now.")
-
     question = payload.question.strip()
     if not question:
         raise HTTPException(status_code=400, detail="Question text cannot be empty.")
-
     query_vector = GEMINI_CLIENT.embed(question, task_type="retrieval_query")
     scored_chunks = rank_chunks(query_vector, payload.category, payload.top_k)
-
     if not scored_chunks:
-        raise HTTPException(
-            status_code=500,
-            detail="No knowledge chunks are available. Rebuild the embeddings index.",
-        )
-
+        raise HTTPException(status_code=500, detail="No knowledge chunks are available. Rebuild the embeddings index.")
     prompt = build_prompt(question, scored_chunks)
     answer = await run_in_threadpool(GEMINI_CLIENT.generate_answer, prompt)
-
-    sources = [
-        SourceChunk(
-            id=record.id,
-            category=record.category,
-            source=record.source,
-            score=round(score, 4),
-            text=record.text,
-        )
-        for score, record in scored_chunks
-    ]
-
+    sources = [SourceChunk(id=record.id, category=record.category, source=record.source, score=round(score, 4), text=record.text) for score, record in scored_chunks]
     return AskResponse(answer=answer, sources=sources)

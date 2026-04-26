@@ -32,7 +32,101 @@ CREATE TABLE IF NOT EXISTS login (
     last_login_at TEXT,
     FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS seo_clients (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    company_name TEXT NOT NULL,
+    industry TEXT,
+    credentials TEXT,
+    contact_person TEXT,
+    email TEXT,
+    phone TEXT,
+    website_url TEXT,
+    notes TEXT,
+    start_date TEXT,
+    due_date TEXT,
+    service_tier TEXT NOT NULL CHECK (service_tier IN ('Tier 1', 'Tier 2', 'Tier 3')),
+    created_by_employee_id INTEGER,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by_employee_id) REFERENCES employees(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS seo_task_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    service_tier TEXT NOT NULL CHECK (service_tier IN ('Tier 1', 'Tier 2', 'Tier 3')),
+    category TEXT NOT NULL CHECK (category IN ('keyword research', 'on-page', 'off-page', 'technical', 'extras')),
+    task_name TEXT NOT NULL,
+    task_description TEXT,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(service_tier, task_name)
+);
+
+CREATE TABLE IF NOT EXISTS seo_client_tasks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id INTEGER NOT NULL,
+    template_id INTEGER,
+    category TEXT NOT NULL CHECK (category IN ('keyword research', 'on-page', 'off-page', 'technical', 'extras')),
+    task_name TEXT NOT NULL,
+    task_description TEXT,
+    status TEXT NOT NULL DEFAULT 'Not Started' CHECK (status IN ('Not Started', 'In Progress', 'Done', 'Blocked')),
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    assigned_to_employee_id INTEGER,
+    due_date TEXT,
+    completed_at TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (client_id) REFERENCES seo_clients(id) ON DELETE CASCADE,
+    FOREIGN KEY (template_id) REFERENCES seo_task_templates(id) ON DELETE SET NULL,
+    FOREIGN KEY (assigned_to_employee_id) REFERENCES employees(id) ON DELETE SET NULL,
+    UNIQUE(client_id, task_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_seo_clients_tier_due_date ON seo_clients(service_tier, due_date);
+CREATE INDEX IF NOT EXISTS idx_seo_clients_company_name ON seo_clients(company_name);
+CREATE INDEX IF NOT EXISTS idx_seo_templates_tier_category_sort ON seo_task_templates(service_tier, category, sort_order);
+CREATE INDEX IF NOT EXISTS idx_seo_client_tasks_client_status ON seo_client_tasks(client_id, status);
+CREATE INDEX IF NOT EXISTS idx_seo_client_tasks_category_status ON seo_client_tasks(category, status);
 """
+
+SEO_TEMPLATE_DATA = {
+    "Tier 1": [
+        ("keyword research", "Baseline keyword set", "Identify primary commercial and branded keywords.", 10),
+        ("keyword research", "Competitor keyword gap review", "Review competing sites for missed opportunities.", 20),
+        ("on-page", "Homepage title and meta updates", "Refresh key metadata for core landing pages.", 30),
+        ("on-page", "Primary service page optimization", "Update headings, copy targets, and internal links.", 40),
+        ("technical", "SEO crawl health check", "Review indexing, broken links, and core crawl blockers.", 50),
+        ("extras", "Monthly summary report", "Deliver concise client-ready report and next steps.", 60),
+    ],
+    "Tier 2": [
+        ("keyword research", "Baseline keyword set", "Identify primary commercial and branded keywords.", 10),
+        ("keyword research", "Competitor keyword gap review", "Review competing sites for missed opportunities.", 20),
+        ("on-page", "Homepage title and meta updates", "Refresh key metadata for core landing pages.", 30),
+        ("on-page", "Primary service page optimization", "Update headings, copy targets, and internal links.", 40),
+        ("on-page", "Content brief recommendations", "Recommend supporting content topics for ranking growth.", 50),
+        ("off-page", "Local citation and profile audit", "Review citation consistency and profile completeness.", 60),
+        ("technical", "SEO crawl health check", "Review indexing, broken links, and core crawl blockers.", 70),
+        ("technical", "Schema and structured data review", "Validate important structured data coverage.", 80),
+        ("extras", "Monthly summary report", "Deliver concise client-ready report and next steps.", 90),
+    ],
+    "Tier 3": [
+        ("keyword research", "Baseline keyword set", "Identify primary commercial and branded keywords.", 10),
+        ("keyword research", "Competitor keyword gap review", "Review competing sites for missed opportunities.", 20),
+        ("keyword research", "Content cluster expansion plan", "Map supporting keyword clusters and page intent.", 30),
+        ("on-page", "Homepage title and meta updates", "Refresh key metadata for core landing pages.", 40),
+        ("on-page", "Primary service page optimization", "Update headings, copy targets, and internal links.", 50),
+        ("on-page", "Content brief recommendations", "Recommend supporting content topics for ranking growth.", 60),
+        ("off-page", "Local citation and profile audit", "Review citation consistency and profile completeness.", 70),
+        ("off-page", "Backlink opportunity review", "Identify practical outreach and link acquisition targets.", 80),
+        ("technical", "SEO crawl health check", "Review indexing, broken links, and core crawl blockers.", 90),
+        ("technical", "Schema and structured data review", "Validate important structured data coverage.", 100),
+        ("technical", "Page speed and CWV review", "Prioritize performance and Core Web Vitals improvements.", 110),
+        ("extras", "Monthly summary report", "Deliver concise client-ready report and next steps.", 120),
+        ("extras", "Quarterly roadmap refresh", "Refresh priorities based on performance and business goals.", 130),
+    ],
+}
 
 
 def ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
@@ -41,11 +135,28 @@ def ensure_column(conn: sqlite3.Connection, table: str, column: str, definition:
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
+def seed_seo_task_templates(conn: sqlite3.Connection) -> None:
+    existing = conn.execute("SELECT COUNT(*) FROM seo_task_templates").fetchone()[0]
+    if existing:
+        return
+    for tier, tasks in SEO_TEMPLATE_DATA.items():
+        for category, task_name, task_description, sort_order in tasks:
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO seo_task_templates
+                (service_tier, category, task_name, task_description, sort_order)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (tier, category, task_name, task_description, sort_order),
+            )
+
+
 def init_db() -> None:
     with sqlite3.connect(DB_PATH) as conn:
         conn.executescript(SCHEMA)
         ensure_column(conn, "employees", "desired_role", "TEXT NOT NULL DEFAULT 'user'")
         ensure_column(conn, "login", "role", "TEXT NOT NULL DEFAULT 'user'")
+        seed_seo_task_templates(conn)
         conn.commit()
 
 
