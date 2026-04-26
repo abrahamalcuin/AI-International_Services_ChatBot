@@ -151,33 +151,39 @@ def seed_seo_task_templates(conn: sqlite3.Connection) -> None:
             )
 
 
-def seed_bootstrap_admin(conn: sqlite3.Connection) -> None:
-    """Create initial admin from BOOTSTRAP_ADMIN_* env vars if no login rows exist."""
-    email = os.getenv("BOOTSTRAP_ADMIN_EMAIL", "").strip()
-    username = os.getenv("BOOTSTRAP_ADMIN_USERNAME", "").strip()
-    password = os.getenv("BOOTSTRAP_ADMIN_PASSWORD", "").strip()
-    if not (email and username and password):
-        return
-    if conn.execute("SELECT COUNT(*) FROM login").fetchone()[0]:
-        return  # already have users, skip
-    from passlib.context import CryptContext
-    pwd_ctx = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
-    # Upsert employee
-    existing = conn.execute("SELECT id FROM employees WHERE email = ?", (email,)).fetchone()
-    if existing:
-        employee_id = existing[0]
+def _upsert_bootstrap_user(conn: sqlite3.Connection, pwd_ctx, code: str, email: str, username: str, password: str, first: str, last: str) -> None:
+    existing_emp = conn.execute("SELECT id FROM employees WHERE email = ?", (email,)).fetchone()
+    if existing_emp:
+        employee_id = existing_emp[0]
     else:
         cursor = conn.execute(
             "INSERT INTO employees (employee_code, first_name, last_name, email, desired_role) VALUES (?, ?, ?, ?, ?)",
-            ("ADMIN001", "Admin", "User", email, "admin"),
+            (code, first, last, email, "admin"),
         )
         employee_id = cursor.lastrowid
-    # Create login if not exists
-    if not conn.execute("SELECT id FROM login WHERE employee_id = ?", (employee_id,)).fetchone():
+    existing_login = conn.execute("SELECT id FROM login WHERE employee_id = ?", (employee_id,)).fetchone()
+    if not existing_login:
         conn.execute(
             "INSERT INTO login (employee_id, username, password_hash, role) VALUES (?, ?, ?, ?)",
             (employee_id, username, pwd_ctx.hash(password), "admin"),
         )
+
+
+def seed_bootstrap_admin(conn: sqlite3.Connection) -> None:
+    """Create admin accounts from BOOTSTRAP_ADMIN_* env vars on first startup."""
+    from passlib.context import CryptContext
+    pwd_ctx = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+
+    users = [
+        ("BOOTSTRAP_ADMIN_EMAIL", "BOOTSTRAP_ADMIN_USERNAME", "BOOTSTRAP_ADMIN_PASSWORD", "ADMIN001", "Admin", "User"),
+        ("BOOTSTRAP_ADMIN2_EMAIL", "BOOTSTRAP_ADMIN2_USERNAME", "BOOTSTRAP_ADMIN2_PASSWORD", "ADMIN002", "Admin2", "User"),
+    ]
+    for email_key, user_key, pass_key, code, first, last in users:
+        email = os.getenv(email_key, "").strip()
+        username = os.getenv(user_key, "").strip()
+        password = os.getenv(pass_key, "").strip()
+        if email and username and password:
+            _upsert_bootstrap_user(conn, pwd_ctx, code, email, username, password, first, last)
 
 
 def init_db() -> None:
