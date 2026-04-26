@@ -311,6 +311,29 @@ class SEOTaskStatusUpdate(BaseModel):
         return value
 
 
+class SEOTaskCreate(BaseModel):
+    client_id: int
+    task_name: str = Field(..., min_length=1)
+    task_description: Optional[str] = None
+    category: str
+    status: str = "Not Started"
+    assigned_to_username: Optional[str] = None
+    due_date: Optional[str] = None
+
+    @validator("category")
+    def validate_category(cls, value: str) -> str:
+        valid = ["keyword research", "on-page", "off-page", "technical", "extras"]
+        if value not in valid:
+            raise ValueError(f"category must be one of {valid}")
+        return value
+
+    @validator("status")
+    def validate_status(cls, value: str) -> str:
+        if value not in SEO_TASK_STATUSES:
+            raise ValueError(f"status must be one of {SEO_TASK_STATUSES}")
+        return value
+
+
 @dataclass
 class EmbeddingRecord:
     id: str
@@ -742,9 +765,66 @@ def seo_tasks_html() -> str:
           {''.join(f"<option value='{s}'>{s}</option>" for s in SEO_TASK_STATUSES)}
         </select>
         <select id='assigneeFilter'><option value=''>All assignees</option></select>
+        <button class='btn btn-primary' onclick='openNewTaskModal()' style='margin-left:auto;'>+ New Task</button>
       </div>
       <div class='board-wrap'>
         <div class='board' id='board'></div>
+      </div>
+    </div>
+
+    <!-- New Task Modal -->
+    <div id='taskModal' style='display:none;position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:1000;align-items:center;justify-content:center;'>
+      <div style='background:var(--surface);border-radius:var(--radius-lg);padding:28px 32px;width:460px;max-width:95vw;box-shadow:var(--shadow-lg);'>
+        <h3 style='margin:0 0 20px;font-size:16px;'>New Task</h3>
+        <form id='newTaskForm' onsubmit='submitNewTask(event)'>
+          <div style='display:flex;flex-direction:column;gap:13px;'>
+            <div>
+              <label class='form-label'>Task Name *</label>
+              <input name='task_name' required placeholder='e.g. Homepage meta update'>
+            </div>
+            <div>
+              <label class='form-label'>Description</label>
+              <input name='task_description' placeholder='Optional details'>
+            </div>
+            <div style='display:grid;grid-template-columns:1fr 1fr;gap:12px;'>
+              <div>
+                <label class='form-label'>Client *</label>
+                <select name='client_id' id='modalClientSel' required></select>
+              </div>
+              <div>
+                <label class='form-label'>Category *</label>
+                <select name='category' required>
+                  {''.join(f"<option value='{c}'>{c.title()}</option>" for c in ['keyword research','on-page','off-page','technical','extras'])}
+                </select>
+              </div>
+            </div>
+            <div style='display:grid;grid-template-columns:1fr 1fr;gap:12px;'>
+              <div>
+                <label class='form-label'>Assignee</label>
+                <select name='assigned_to_username'>
+                  <option value=''>Unassigned</option>
+                  <option value='lirha'>lirha</option>
+                  <option value='ivan'>ivan</option>
+                  <option value='alcuin'>alcuin</option>
+                </select>
+              </div>
+              <div>
+                <label class='form-label'>Status</label>
+                <select name='status'>
+                  {''.join(f"<option value='{s}'>{s}</option>" for s in SEO_TASK_STATUSES)}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label class='form-label'>Due Date</label>
+              <input name='due_date' type='date'>
+            </div>
+          </div>
+          <div style='display:flex;gap:10px;justify-content:flex-end;margin-top:22px;'>
+            <button type='button' class='btn' onclick='closeNewTaskModal()'>Cancel</button>
+            <button type='submit' class='btn btn-primary' id='taskSubmitBtn'>Create Task</button>
+          </div>
+        </form>
       </div>
     </div>
     <script>
@@ -835,6 +915,45 @@ def seo_tasks_html() -> str:
         document.getElementById(id).addEventListener('input', render);
         document.getElementById(id).addEventListener('change', render);
       }});
+
+      function openNewTaskModal() {{
+        const modal = document.getElementById('taskModal');
+        modal.style.display = 'flex';
+        const sel = document.getElementById('modalClientSel');
+        sel.innerHTML = '<option value="">Select client...</option>';
+        allClients.forEach(c => {{ const o = document.createElement('option'); o.value = c.id; o.textContent = c.company_name; sel.appendChild(o); }});
+        document.getElementById('newTaskForm').reset();
+      }}
+
+      function closeNewTaskModal() {{
+        document.getElementById('taskModal').style.display = 'none';
+      }}
+
+      document.getElementById('taskModal').addEventListener('click', function(e) {{
+        if (e.target === this) closeNewTaskModal();
+      }});
+
+      async function submitNewTask(e) {{
+        e.preventDefault();
+        const btn = document.getElementById('taskSubmitBtn');
+        btn.disabled = true; btn.textContent = 'Saving...';
+        const fd = new FormData(e.target);
+        const body = Object.fromEntries(fd.entries());
+        body.client_id = parseInt(body.client_id);
+        if (!body.assigned_to_username) delete body.assigned_to_username;
+        if (!body.due_date) delete body.due_date;
+        if (!body.task_description) delete body.task_description;
+        const res = await fetch('/api/seo/tasks', {{
+          method: 'POST', headers: {{'Content-Type':'application/json'}},
+          body: JSON.stringify(body)
+        }});
+        btn.disabled = false; btn.textContent = 'Create Task';
+        if (!res.ok) {{ alert('Failed to create task'); return; }}
+        const newTask = await res.json();
+        allTasks.push(newTask);
+        closeNewTaskModal();
+        render();
+      }}
 
       load();
     </script>
@@ -1064,6 +1183,34 @@ async def list_seo_tasks(request: Request):
             """
         ).fetchall()
         return [dict(row) for row in rows]
+
+
+@app.post("/api/seo/tasks")
+async def create_seo_task(request: Request, payload: SEOTaskCreate):
+    require_user(request)
+    with get_connection() as conn:
+        client = conn.execute("SELECT id FROM seo_clients WHERE id = ?", (payload.client_id,)).fetchone()
+        if not client:
+            raise HTTPException(status_code=404, detail="Client not found")
+        max_sort = conn.execute(
+            "SELECT COALESCE(MAX(sort_order), 0) FROM seo_client_tasks WHERE client_id = ? AND category = ?",
+            (payload.client_id, payload.category),
+        ).fetchone()[0]
+        cursor = conn.execute(
+            """
+            INSERT INTO seo_client_tasks
+              (client_id, category, task_name, task_description, status, assigned_to_username, due_date, sort_order)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (payload.client_id, payload.category, payload.task_name, payload.task_description,
+             payload.status, payload.assigned_to_username, payload.due_date, max_sort + 10),
+        )
+        conn.commit()
+        row = conn.execute(
+            "SELECT seo_client_tasks.*, seo_clients.company_name FROM seo_client_tasks JOIN seo_clients ON seo_clients.id = seo_client_tasks.client_id WHERE seo_client_tasks.id = ?",
+            (cursor.lastrowid,),
+        ).fetchone()
+        return dict(row)
 
 
 @app.patch("/api/seo/tasks/{task_id}")
