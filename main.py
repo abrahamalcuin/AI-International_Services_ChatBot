@@ -554,9 +554,32 @@ def render_page(title: str, body: str) -> HTMLResponse:
     return HTMLResponse(f"<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'>{PAGE_STYLE}<title>{title} — SEO Manager</title></head><body>{body}</body></html>")
 
 
+def user_display_name(user) -> str:
+    if not user:
+        return ""
+    first_name = (user["first_name"] or "").strip()
+    last_name = (user["last_name"] or "").strip()
+    username = (user["username"] or "").strip()
+    if first_name.lower() == "admin" and last_name.lower() == "user" and username:
+        return username
+    full_name = f"{first_name} {last_name}".strip()
+    return full_name or username
+
+
+def user_first_name(user) -> str:
+    if not user:
+        return ""
+    first_name = (user["first_name"] or "").strip()
+    username = (user["username"] or "").strip()
+    if first_name and first_name.lower() != "admin":
+        return first_name
+    return username or first_name
+
+
 def sidebar_html(active: str, user) -> str:
-    initials = (user["first_name"][0] + user["last_name"][0]).upper() if user else "?"
-    name = f"{user['first_name']} {user['last_name']}" if user else ""
+    display_name = user_display_name(user)
+    initials = "".join(part[0] for part in display_name.split()[:2]).upper() if display_name else "?"
+    name = display_name
     role = user["role"].capitalize() if user else ""
     nav_icon = {
         "dashboard": '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>',
@@ -700,6 +723,7 @@ def create_client_tasks(conn, client_id: int, service_tier: str, due_date: Optio
 
 def seo_dashboard_html(user) -> str:
     metrics = seo_metrics()
+    first_name = user_first_name(user)
     team_rows = metrics["assignee_rows"][:4]
     team_html = "".join(
         f"""
@@ -720,7 +744,7 @@ def seo_dashboard_html(user) -> str:
       <div class='card hero-card'>
         <div class='page-header'>
           <h1>Dashboard</h1>
-          <p>Good morning, {user['first_name']}. Here’s the aggregate delivery view for the SEO workspace.</p>
+          <p>Good morning, {first_name}.</p>
         </div>
         <div class='stat-grid'>
           <div class='metric'>
@@ -1072,7 +1096,7 @@ def seo_clients_html() -> str:
     """
 
 
-def seo_tasks_html() -> str:
+def seo_tasks_html(user) -> str:
     status_options_js = json.dumps(SEO_TASK_STATUSES)
     categories = [
         ("keyword research", "Keyword Research", "#8b5cf6"),
@@ -1082,6 +1106,7 @@ def seo_tasks_html() -> str:
         ("extras",           "Extras",            "#6b7280"),
     ]
     cols_js = json.dumps([{"key": k, "label": l, "color": c} for k, l, c in categories])
+    current_username = ((user["username"] or "") if user else "").strip().lower()
     return f"""
     <div class='page-shell' style='max-width:none;'>
       <div class='page-header'>
@@ -1131,11 +1156,8 @@ def seo_tasks_html() -> str:
             <div style='display:grid;grid-template-columns:1fr 1fr;gap:12px;'>
               <div>
                 <label class='form-label'>Assignee</label>
-                <select name='assigned_to_username'>
+                <select name='assigned_to_username' id='modalAssigneeSel'>
                   <option value=''>Unassigned</option>
-                  <option value='lirha'>lirha</option>
-                  <option value='ivan'>ivan</option>
-                  <option value='alcuin'>alcuin</option>
                 </select>
               </div>
               <div>
@@ -1160,6 +1182,7 @@ def seo_tasks_html() -> str:
     <script>
       const STATUSES = {status_options_js};
       const COLS = {cols_js};
+      const CURRENT_USERNAME = {json.dumps(current_username)};
 
       const STRIP_COLOR = {{'Not Started':'#e2e5ea','In Progress':'#2563eb','Done':'#16a34a','Blocked':'#dc2626'}};
 
@@ -1170,12 +1193,13 @@ def seo_tasks_html() -> str:
         return `<span class="assignee-chip"><span class="av" style="background:${{bg}}">${{u[0].toUpperCase()}}</span>${{u}}</span>`;
       }}
 
-      let allTasks = [], allClients = [];
+      let allTasks = [], allClients = [], allEmployees = [];
 
       async function load() {{
-        const [tr, cr] = await Promise.all([fetch('/api/seo/tasks'), fetch('/api/seo/clients')]);
+        const [tr, cr, er] = await Promise.all([fetch('/api/seo/tasks'), fetch('/api/seo/clients'), fetch('/api/calendar/employees')]);
         allTasks = await tr.json();
         allClients = await cr.json();
+        allEmployees = await er.json();
         const clientSel = document.getElementById('clientFilter');
         allClients.forEach(c => {{ const o = document.createElement('option'); o.value = c.id; o.textContent = c.company_name; clientSel.appendChild(o); }});
         const assignees = [...new Set(allTasks.map(t => t.assigned_to_username).filter(Boolean))];
@@ -1252,6 +1276,22 @@ def seo_tasks_html() -> str:
         const sel = document.getElementById('modalClientSel');
         sel.innerHTML = '<option value="">Select client...</option>';
         allClients.forEach(c => {{ const o = document.createElement('option'); o.value = c.id; o.textContent = c.company_name; sel.appendChild(o); }});
+        const assigneeSel = document.getElementById('modalAssigneeSel');
+        assigneeSel.innerHTML = '<option value="">Unassigned</option>';
+        if (CURRENT_USERNAME) {{
+          const me = document.createElement('option');
+          me.value = CURRENT_USERNAME;
+          me.textContent = 'Assign to me';
+          assigneeSel.appendChild(me);
+        }}
+        allEmployees
+          .filter(emp => (emp.username || '').toLowerCase() !== CURRENT_USERNAME)
+          .forEach(emp => {{
+            const o = document.createElement('option');
+            o.value = emp.username;
+            o.textContent = emp.username;
+            assigneeSel.appendChild(o);
+          }});
         document.getElementById('newTaskForm').reset();
       }}
 
@@ -1867,7 +1907,7 @@ async def seo_tasks_page(request: Request):
     user = current_user(request)
     if not user:
         return RedirectResponse(f"/login?next={quote('/SEO/tasks')}", status_code=302)
-    return render_app_page("Tasks", seo_tasks_html(), "tasks", user)
+    return render_app_page("Tasks", seo_tasks_html(user), "tasks", user)
 
 
 @app.get("/api/seo/templates")
