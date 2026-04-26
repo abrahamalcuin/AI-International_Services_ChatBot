@@ -51,33 +51,202 @@ You MUST follow these rules:
 """
 
 PAGE_STYLE = """
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-body { font-family: Arial, sans-serif; max-width: 1180px; margin: 24px auto; padding: 16px; line-height: 1.5; background: #f7f8fb; color: #1f2937; }
-a { color: inherit; }
-form { display: grid; gap: 12px; }
-input, textarea, select { width: 100%; padding: 10px; font-size: 14px; border: 1px solid #d1d5db; border-radius: 10px; }
-textarea { min-height: 90px; resize: vertical; }
-button, a.button { padding: 10px 14px; font-size: 14px; cursor: pointer; text-decoration: none; display: inline-block; border-radius: 10px; border: 0; background: #111827; color: #fff; }
-button.secondary, a.secondary { background: #e5e7eb; color: #111827; }
-.error { color: #b00020; }
-.ok { color: #0a7a2f; }
-.card { border: 1px solid #e5e7eb; border-radius: 16px; padding: 18px; box-shadow: 0 8px 30px rgba(0,0,0,.04); background: white; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --border: #e2e5ea;
+  --border-strong: #ccd0d9;
+  --text: #111827;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-light: #eff6ff;
+  --danger: #dc2626;
+  --danger-light: #fef2f2;
+  --success: #16a34a;
+  --success-light: #f0fdf4;
+  --warning-light: #fffbeb;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --shadow-sm: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,.06), 0 2px 4px rgba(0,0,0,.04);
+}
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text);
+  background: var(--bg);
+  min-height: 100vh;
+}
+a { color: inherit; text-decoration: none; }
+
+/* Layout */
+.page-shell { max-width: 1220px; margin: 0 auto; padding: 28px 24px; display: grid; gap: 20px; }
+
+/* Topbar */
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px 22px;
+  box-shadow: var(--shadow-sm);
+}
+.topbar h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
+.topbar p { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+
+/* Nav */
+.nav { display: flex; gap: 6px; flex-wrap: wrap; }
+.nav a {
+  padding: 7px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid transparent;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.nav a:hover { background: var(--bg); border-color: var(--border); color: var(--text); }
+.nav a.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+/* Cards */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 22px;
+  box-shadow: var(--shadow-sm);
+}
+.card h2 { font-size: 15px; font-weight: 600; margin-bottom: 16px; letter-spacing: -0.01em; }
+
+/* Grid */
 .grid { display: grid; gap: 16px; }
 .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.topbar { display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:20px; }
-.nav { display:flex; gap:10px; flex-wrap: wrap; }
-.nav a { padding: 10px 14px; border-radius: 999px; text-decoration:none; background:#fff; border:1px solid #e5e7eb; }
-.nav a.active { background:#111827; color:#fff; }
-.table { width:100%; border-collapse: collapse; }
-.table th, .table td { padding: 10px; border-bottom:1px solid #e5e7eb; text-align:left; vertical-align: top; }
-.badge { display:inline-block; padding:4px 10px; border-radius:999px; font-size:12px; background:#eef2ff; }
-.metric { padding:16px; border-radius:14px; background:#f8fafc; border:1px solid #e5e7eb; }
-.muted { color:#6b7280; }
-.page-shell { display:grid; gap:18px; }
-@media (max-width: 880px) { .grid.two, .grid.three { grid-template-columns: 1fr; } }
-</style>
-"""
+
+/* Metrics */
+.metric {
+  padding: 18px 20px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+}
+.metric .muted { font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin-bottom: 8px; }
+.metric h2 { font-size: 28px; font-weight: 700; letter-spacing: -0.03em; color: var(--text); }
+
+/* Forms */
+form { display: grid; gap: 14px; }
+label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; font-weight: 500; color: var(--text-secondary); }
+input, textarea, select {
+  width: 100%;
+  padding: 9px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  appearance: auto;
+}
+input:focus, textarea:focus, select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37,99,235,.12);
+}
+textarea { min-height: 88px; resize: vertical; }
+
+/* Buttons */
+button, a.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: var(--primary);
+  color: #fff;
+  transition: background 0.15s, box-shadow 0.15s;
+  text-decoration: none;
+}
+button:hover, a.button:hover { background: var(--primary-hover); box-shadow: var(--shadow-sm); }
+button.secondary, a.secondary {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+button.secondary:hover, a.secondary:hover { background: var(--bg); }
+button.danger { background: var(--danger); }
+button.danger:hover { background: #b91c1c; }
+
+/* Tables */
+.table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+.table thead { border-bottom: 2px solid var(--border); }
+.table th {
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text-muted);
+}
+.table td { padding: 11px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+.table tbody tr:hover { background: #fafbfc; }
+.table tbody tr:last-child td { border-bottom: none; }
+.table strong { font-weight: 600; color: var(--text); }
+
+/* Badges */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  background: var(--primary-light);
+  color: var(--primary);
+  border: 1px solid rgba(37,99,235,.15);
+}
+
+/* Utilities */
+.muted { color: var(--text-muted); font-size: 12.5px; }
+.error { color: var(--danger); font-size: 13px; }
+.ok { color: var(--success); font-size: 13px; }
+.divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+/* Login page */
+.login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.login-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 36px 32px; width: 100%; max-width: 380px; box-shadow: var(--shadow-md); }
+.login-card h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 6px; }
+.login-card .subtitle { color: var(--text-secondary); font-size: 13px; margin-bottom: 28px; }
+
+/* Responsive */
+@media (max-width: 880px) {
+  .grid.two, .grid.three { grid-template-columns: 1fr; }
+  .page-shell { padding: 16px; }
+  .topbar { flex-direction: column; align-items: flex-start; }
+}
+</style>"""
 
 
 class SourceChunk(BaseModel):
@@ -630,7 +799,7 @@ async def login_page(request: Request, next: str = "/SEO") -> HTMLResponse:
     user = current_user(request)
     if user:
         return RedirectResponse(next, status_code=302)
-    return render_page("Login", f"<div class='card'><h1>Login</h1><form method='post' action='/login'><input type='hidden' name='next' value='{next}'><label>Username</label><input name='username' required><label>Password</label><input type='password' name='password' required><button type='submit'>Sign in</button></form></div>")
+    return render_page("Login", f"<div class='login-wrap'><div class='login-card'><h1>SEO Manager</h1><p class='subtitle'>Sign in to your workspace</p><form method='post' action='/login'><input type='hidden' name='next' value='{next}'><label>Username<input name='username' required autocomplete='username' placeholder='Your username'></label><label>Password<input type='password' name='password' required autocomplete='current-password' placeholder='••••••••'></label><button type='submit' style='width:100%;margin-top:4px;padding:11px;font-size:14px;'>Sign in</button></form></div></div>")
 
 
 @app.post("/login")
@@ -650,7 +819,7 @@ async def login_submit(request: Request, username: str = Form(...), password: st
             conn.execute("UPDATE login SET last_login_at = CURRENT_TIMESTAMP WHERE employee_id = ?", (row["id"],))
             conn.commit()
             return RedirectResponse(next or "/SEO", status_code=302)
-    return render_page("Login", f"<div class='card'><h1>Login</h1><p class='error'>Invalid username or password.</p><form method='post' action='/login'><input type='hidden' name='next' value='{next}'><label>Username</label><input name='username' required><label>Password</label><input type='password' name='password' required><button type='submit'>Sign in</button></form></div>")
+    return render_page("Login", f"<div class='login-wrap'><div class='login-card'><h1>SEO Manager</h1><p class='subtitle'>Sign in to your workspace</p><p class='error' style='margin-bottom:16px;'>Incorrect username or password.</p><form method='post' action='/login'><input type='hidden' name='next' value='{next}'><label>Username<input name='username' required autocomplete='username' placeholder='Your username'></label><label>Password<input type='password' name='password' required autocomplete='current-password' placeholder='••••••••'></label><button type='submit' style='width:100%;margin-top:4px;padding:11px;font-size:14px;'>Sign in</button></form></div></div>")
 
 
 @app.get("/logout")
