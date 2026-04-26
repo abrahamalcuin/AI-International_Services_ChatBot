@@ -246,7 +246,7 @@ def current_user(request: Request):
 
 app = FastAPI(
     title="BYU-Idaho Student Advisor RAG API",
-    version="1.0.0",
+    version="1.0.1",
     description="Retrieval-Augmented Generation backend that powers the BYU-Idaho chatbot.",
 )
 
@@ -267,8 +267,13 @@ GEMINI_CLIENT: Optional[GeminiClient] = None
 async def startup_event() -> None:
     global EMBEDDING_INDEX, GEMINI_CLIENT
     init_db()
-    GEMINI_CLIENT = GeminiClient()
-    EMBEDDING_INDEX = load_embedding_index(EMBEDDINGS_PATH)
+    try:
+        GEMINI_CLIENT = GeminiClient()
+        EMBEDDING_INDEX = load_embedding_index(EMBEDDINGS_PATH)
+    except Exception as exc:
+        print(f"Startup warning: chatbot features unavailable: {exc}")
+        GEMINI_CLIENT = None
+        EMBEDDING_INDEX = []
 
 
 @app.get("/login", response_class=HTMLResponse)
@@ -402,10 +407,24 @@ async def seo_dashboard(request: Request):
     )
 
 
+@app.get("/")
+async def root():
+    return {"ok": True, "service": "byui-student-advisor-api", "version": "1.0.1"}
+
+
+@app.get("/health")
+async def health():
+    return {
+        "ok": True,
+        "chatbotReady": GEMINI_CLIENT is not None and bool(EMBEDDING_INDEX),
+        "authReady": True,
+    }
+
+
 @app.post("/ask", response_model=AskResponse)
 async def ask(payload: AskRequest) -> AskResponse:
     if GEMINI_CLIENT is None or not EMBEDDING_INDEX:
-        raise HTTPException(status_code=503, detail="Service is initializing. Retry in a moment.")
+        raise HTTPException(status_code=503, detail="Chatbot features are unavailable right now.")
 
     question = payload.question.strip()
     if not question:
