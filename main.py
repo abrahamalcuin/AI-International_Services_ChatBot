@@ -68,184 +68,165 @@ PAGE_STYLE = """
   --primary-hover: #1d4ed8;
   --primary-light: #eff6ff;
   --danger: #dc2626;
-  --danger-light: #fef2f2;
   --success: #16a34a;
-  --success-light: #f0fdf4;
-  --warning-light: #fffbeb;
+  --sidebar-w: 232px;
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
   --shadow-sm: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
-  --shadow-md: 0 4px 12px rgba(0,0,0,.06), 0 2px 4px rgba(0,0,0,.04);
+  --shadow-md: 0 4px 12px rgba(0,0,0,.07), 0 2px 4px rgba(0,0,0,.04);
 }
-body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  font-size: 14px;
-  line-height: 1.6;
-  color: var(--text);
-  background: var(--bg);
-  min-height: 100vh;
-}
+
+/* Reset */
+body { font-family: 'Inter', system-ui, -apple-system, sans-serif; font-size: 14px; line-height: 1.6; color: var(--text); background: var(--bg); min-height: 100vh; }
 a { color: inherit; text-decoration: none; }
 
-/* Layout */
-.page-shell { max-width: 1220px; margin: 0 auto; padding: 28px 24px; display: grid; gap: 20px; }
+/* ── App shell ── */
+.app { display: flex; min-height: 100vh; }
 
-/* Topbar */
-.topbar {
+/* ── Sidebar ── */
+.sidebar {
+  width: var(--sidebar-w);
+  min-height: 100vh;
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  background: #111827;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 16px 22px;
-  box-shadow: var(--shadow-sm);
+  flex-direction: column;
+  z-index: 40;
+  border-right: 1px solid rgba(255,255,255,.06);
 }
-.topbar h1 { font-size: 18px; font-weight: 700; letter-spacing: -0.02em; }
-.topbar p { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
-
-/* Nav */
-.nav { display: flex; gap: 6px; flex-wrap: wrap; }
-.nav a {
-  padding: 7px 14px;
+.sidebar-brand {
+  padding: 22px 18px 18px;
+  border-bottom: 1px solid rgba(255,255,255,.07);
+}
+.sidebar-brand .app-name { font-size: 15px; font-weight: 700; color: #fff; letter-spacing: -0.02em; }
+.sidebar-brand .app-sub { font-size: 11px; color: rgba(255,255,255,.4); margin-top: 2px; text-transform: uppercase; letter-spacing: .08em; }
+.sidebar-nav { flex: 1; padding: 12px 10px; display: flex; flex-direction: column; gap: 2px; }
+.sidebar-nav a {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px;
   border-radius: var(--radius-sm);
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  background: transparent;
-  border: 1px solid transparent;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  font-size: 13px; font-weight: 500;
+  color: rgba(255,255,255,.55);
+  transition: background 0.15s, color 0.15s;
 }
-.nav a:hover { background: var(--bg); border-color: var(--border); color: var(--text); }
-.nav a.active { background: var(--primary); color: #fff; border-color: var(--primary); }
-
-/* Cards */
-.card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 22px;
-  box-shadow: var(--shadow-sm);
+.sidebar-nav a:hover { background: rgba(255,255,255,.07); color: rgba(255,255,255,.9); }
+.sidebar-nav a.active { background: rgba(255,255,255,.12); color: #fff; }
+.sidebar-nav a svg { flex-shrink: 0; opacity: .7; }
+.sidebar-nav a.active svg { opacity: 1; }
+.nav-section { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: rgba(255,255,255,.25); padding: 14px 12px 6px; }
+.sidebar-footer {
+  padding: 14px 14px 18px;
+  border-top: 1px solid rgba(255,255,255,.07);
 }
-.card h2 { font-size: 15px; font-weight: 600; margin-bottom: 16px; letter-spacing: -0.01em; }
+.sidebar-user { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--primary);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; color: #fff; flex-shrink: 0;
+  text-transform: uppercase;
+}
+.sidebar-user-info .name { font-size: 13px; font-weight: 600; color: #fff; }
+.sidebar-user-info .role { font-size: 11px; color: rgba(255,255,255,.4); }
+.sidebar-logout {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px; border-radius: var(--radius-sm);
+  font-size: 12.5px; font-weight: 500; color: rgba(255,255,255,.4);
+  transition: background 0.15s, color 0.15s;
+  width: 100%;
+}
+.sidebar-logout:hover { background: rgba(255,255,255,.07); color: rgba(255,255,255,.8); }
 
-/* Grid */
+/* ── Main content ── */
+.main { margin-left: var(--sidebar-w); flex: 1; min-width: 0; }
+.page-shell { padding: 28px 28px; display: grid; gap: 20px; max-width: 1200px; }
+
+/* ── Page header ── */
+.page-header { margin-bottom: 4px; }
+.page-header h1 { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+.page-header p { font-size: 13px; color: var(--text-secondary); margin-top: 3px; }
+
+/* ── Cards ── */
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 22px; box-shadow: var(--shadow-sm); }
+.card h2 { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 16px; color: var(--text); }
+
+/* ── Grid ── */
 .grid { display: grid; gap: 16px; }
 .grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .grid.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
-/* Metrics */
-.metric {
-  padding: 18px 20px;
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow-sm);
-}
-.metric .muted { font-size: 12px; font-weight: 500; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin-bottom: 8px; }
-.metric h2 { font-size: 28px; font-weight: 700; letter-spacing: -0.03em; color: var(--text); }
+/* ── Metrics ── */
+.metric { padding: 20px; border-radius: var(--radius-md); background: var(--surface); border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
+.metric .label { font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); margin-bottom: 10px; }
+.metric .value { font-size: 30px; font-weight: 700; letter-spacing: -0.03em; color: var(--text); }
 
-/* Forms */
+/* ── Forms ── */
 form { display: grid; gap: 14px; }
-label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; font-weight: 500; color: var(--text-secondary); }
+label { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; font-weight: 500; color: var(--text-secondary); }
 input, textarea, select {
-  width: 100%;
-  padding: 9px 12px;
-  font-size: 14px;
-  font-family: inherit;
-  color: var(--text);
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
-  appearance: auto;
+  width: 100%; padding: 8px 11px; font-size: 13.5px; font-family: inherit; color: var(--text);
+  background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+  outline: none; transition: border-color 0.15s, box-shadow 0.15s; appearance: auto;
 }
-input:focus, textarea:focus, select:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(37,99,235,.12);
-}
-textarea { min-height: 88px; resize: vertical; }
+input:focus, textarea:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+textarea { min-height: 80px; resize: vertical; }
 
-/* Buttons */
+/* ── Buttons ── */
 button, a.button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 9px 16px;
-  font-size: 13px;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: var(--primary);
-  color: #fff;
-  transition: background 0.15s, box-shadow 0.15s;
-  text-decoration: none;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 8px 15px; font-size: 13px; font-weight: 600; font-family: inherit;
+  cursor: pointer; border: 1px solid transparent; border-radius: var(--radius-sm);
+  background: var(--primary); color: #fff; transition: background 0.15s; text-decoration: none;
 }
-button:hover, a.button:hover { background: var(--primary-hover); box-shadow: var(--shadow-sm); }
-button.secondary, a.secondary {
-  background: var(--surface);
-  color: var(--text);
-  border-color: var(--border-strong);
-}
+button:hover, a.button:hover { background: var(--primary-hover); }
+button.secondary, a.secondary { background: var(--surface); color: var(--text); border-color: var(--border-strong); }
 button.secondary:hover, a.secondary:hover { background: var(--bg); }
 button.danger { background: var(--danger); }
 button.danger:hover { background: #b91c1c; }
 
-/* Tables */
-.table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
-.table thead { border-bottom: 2px solid var(--border); }
-.table th {
-  padding: 10px 12px;
-  text-align: left;
-  font-size: 11.5px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: .06em;
-  color: var(--text-muted);
-}
-.table td { padding: 11px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+/* ── Tables ── */
+.table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.table thead { border-bottom: 1px solid var(--border); }
+.table th { padding: 9px 12px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--text-muted); }
+.table td { padding: 11px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .table tbody tr:hover { background: #fafbfc; }
 .table tbody tr:last-child td { border-bottom: none; }
 .table strong { font-weight: 600; color: var(--text); }
 
-/* Badges */
-.badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 3px 9px;
-  border-radius: 999px;
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: .02em;
-  background: var(--primary-light);
-  color: var(--primary);
-  border: 1px solid rgba(37,99,235,.15);
-}
+/* ── Badges ── */
+.badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; background: var(--primary-light); color: var(--primary); border: 1px solid rgba(37,99,235,.12); }
+.badge.green { background: #f0fdf4; color: #16a34a; border-color: rgba(22,163,74,.15); }
+.badge.yellow { background: #fefce8; color: #ca8a04; border-color: rgba(202,138,4,.15); }
+.badge.red { background: #fef2f2; color: var(--danger); border-color: rgba(220,38,38,.15); }
+.badge.gray { background: #f8fafc; color: #64748b; border-color: rgba(100,116,139,.15); }
 
-/* Utilities */
+/* ── Avatar chip ── */
+.assignee-chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px 2px 4px; border-radius: 999px; background: #f1f5f9; border: 1px solid var(--border); font-size: 11.5px; font-weight: 500; color: var(--text-secondary); }
+.assignee-chip .av { width: 18px; height: 18px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; text-transform: uppercase; }
+
+/* ── Utilities ── */
 .muted { color: var(--text-muted); font-size: 12.5px; }
 .error { color: var(--danger); font-size: 13px; }
 .ok { color: var(--success); font-size: 13px; }
-.divider { height: 1px; background: var(--border); margin: 4px 0; }
 
-/* Login page */
-.login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; }
+/* ── Login ── */
+.login-wrap { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; background: var(--bg); }
 .login-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 36px 32px; width: 100%; max-width: 380px; box-shadow: var(--shadow-md); }
 .login-card h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 6px; }
 .login-card .subtitle { color: var(--text-secondary); font-size: 13px; margin-bottom: 28px; }
 
-/* Responsive */
-@media (max-width: 880px) {
-  .grid.two, .grid.three { grid-template-columns: 1fr; }
+/* ── Mobile ── */
+@media (max-width: 900px) {
+  .sidebar { transform: translateX(-100%); transition: transform 0.2s; }
+  .sidebar.open { transform: translateX(0); }
+  .main { margin-left: 0; }
   .page-shell { padding: 16px; }
-  .topbar { flex-direction: column; align-items: flex-start; }
+  .grid.two, .grid.three { grid-template-columns: 1fr; }
+  .mobile-menu-btn { display: flex !important; }
 }
+.mobile-menu-btn { display: none; position: fixed; top: 14px; left: 14px; z-index: 50; background: #111827; color: #fff; border: none; border-radius: var(--radius-sm); padding: 8px; cursor: pointer; }
 </style>"""
 
 
@@ -399,7 +380,53 @@ def build_prompt(question: str, scored_chunks: List[Tuple[float, EmbeddingRecord
 
 
 def render_page(title: str, body: str) -> HTMLResponse:
-    return HTMLResponse(f"<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'>{PAGE_STYLE}<title>{title}</title></head><body>{body}</body></html>")
+    return HTMLResponse(f"<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'>{PAGE_STYLE}<title>{title} — SEO Manager</title></head><body>{body}</body></html>")
+
+
+def sidebar_html(active: str, user) -> str:
+    initials = (user["first_name"][0] + user["last_name"][0]).upper() if user else "?"
+    name = f"{user['first_name']} {user['last_name']}" if user else ""
+    role = user["role"].capitalize() if user else ""
+    nav_icon = {
+        "dashboard": '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>',
+        "clients":   '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+        "tasks":     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
+        "logout":    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>',
+    }
+    def nav_link(key, label, href):
+        cls = "active" if active == key else ""
+        return f"<a href='{href}' class='{cls}'>{nav_icon[key]}{label}</a>"
+    return f"""
+    <button class='mobile-menu-btn' onclick="document.querySelector('.sidebar').classList.toggle('open')">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+    <nav class='sidebar'>
+      <div class='sidebar-brand'>
+        <div class='app-name'>SEO Manager</div>
+        <div class='app-sub'>Workspace</div>
+      </div>
+      <div class='sidebar-nav'>
+        <div class='nav-section'>Main</div>
+        {nav_link('dashboard', 'Dashboard', '/SEO')}
+        {nav_link('clients', 'Clients', '/SEO/clients')}
+        {nav_link('tasks', 'Tasks', '/SEO/tasks')}
+      </div>
+      <div class='sidebar-footer'>
+        <div class='sidebar-user'>
+          <div class='avatar'>{initials}</div>
+          <div class='sidebar-user-info'>
+            <div class='name'>{name}</div>
+            <div class='role'>{role}</div>
+          </div>
+        </div>
+        <a href='/logout' class='sidebar-logout'>{nav_icon['logout']} Sign out</a>
+      </div>
+    </nav>"""
+
+
+def render_app_page(title: str, body: str, active: str, user) -> HTMLResponse:
+    sidebar = sidebar_html(active, user)
+    return HTMLResponse(f"<!doctype html><html><head><meta charset='utf-8'><meta name='viewport' content='width=device-width, initial-scale=1'>{PAGE_STYLE}<title>{title} — SEO Manager</title></head><body><div class='app'>{sidebar}<div class='main'>{body}</div></div></body></html>")
 
 
 def current_user(request: Request):
@@ -438,7 +465,7 @@ def seo_metrics() -> dict:
 def create_client_tasks(conn, client_id: int, service_tier: str, due_date: Optional[str]) -> int:
     templates = conn.execute(
         """
-        SELECT id, category, task_name, task_description, sort_order
+        SELECT id, category, task_name, task_description, sort_order, default_assignee
         FROM seo_task_templates
         WHERE service_tier = ? AND is_active = 1
         ORDER BY sort_order, id
@@ -449,10 +476,12 @@ def create_client_tasks(conn, client_id: int, service_tier: str, due_date: Optio
         conn.execute(
             """
             INSERT INTO seo_client_tasks
-            (client_id, template_id, category, task_name, task_description, sort_order, due_date)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            (client_id, template_id, category, task_name, task_description, sort_order, due_date, assigned_to_username)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (client_id, template["id"], template["category"], template["task_name"], template["task_description"], template["sort_order"], due_date),
+            (client_id, template["id"], template["category"], template["task_name"],
+             template["task_description"], template["sort_order"], due_date,
+             template["default_assignee"]),
         )
     return len(templates)
 
@@ -463,23 +492,14 @@ def seo_dashboard_html(user) -> str:
     status_options_js = json.dumps(SEO_TASK_STATUSES)
     return f"""
     <div class='page-shell'>
-      <div class='topbar'>
-        <div>
-          <h1>SEO Project Manager</h1>
-          <p class='muted'>Welcome, {user['first_name']} {user['last_name']}.</p>
-          <p class='muted'>Signed in as <strong>{user['username']}</strong> ({user['role']}).</p>
-        </div>
-        <div class='nav'>
-          <a class='active' href='/SEO'>Dashboard</a>
-          <a href='/SEO/clients'>Clients</a>
-          <a href='/SEO/tasks'>Tasks</a>
-          <a href='/logout'>Logout</a>
-        </div>
+      <div class='page-header'>
+        <h1>Dashboard</h1>
+        <p>Good to see you, {user['first_name']}.</p>
       </div>
       <div class='grid three'>
-        <div class='metric'><div class='muted'>Clients</div><h2 id='metricClients'>{metrics['client_count']}</h2></div>
-        <div class='metric'><div class='muted'>Total tasks</div><h2 id='metricOpen'>{metrics['task_count']}</h2></div>
-        <div class='metric'><div class='muted'>Blocked tasks</div><h2 id='metricBlocked'>{metrics['blocked_count']}</h2></div>
+        <div class='metric'><div class='label'>Clients</div><div class='value' id='metricClients'>{metrics['client_count']}</div></div>
+        <div class='metric'><div class='label'>Total tasks</div><div class='value' id='metricOpen'>{metrics['task_count']}</div></div>
+        <div class='metric'><div class='label'>Blocked</div><div class='value' id='metricBlocked'>{metrics['blocked_count']}</div></div>
       </div>
       <div class='grid two'>
         <div class='card'>
@@ -518,7 +538,7 @@ def seo_dashboard_html(user) -> str:
         <div class='card'>
           <h2>Recent tasks</h2>
           <table class='table'>
-            <thead><tr><th>Task</th><th>Category</th><th>Status</th><th>Update</th></tr></thead>
+            <thead><tr><th>Task</th><th>Category</th><th>Assignee</th><th>Status</th><th>Update</th></tr></thead>
             <tbody id='taskList'></tbody>
           </table>
         </div>
@@ -526,6 +546,13 @@ def seo_dashboard_html(user) -> str:
     </div>
     <script>
       const STATUSES = {status_options_js};
+      function statusClass(s) {{
+        return {{  'Not Started':'gray','In Progress':'','Done':'green','Blocked':'red' }}[s]||'';
+      }}
+      function assigneeChip(u) {{
+        if (!u) return '<span class="muted">—</span>';
+        return `<span class="assignee-chip"><span class="av">${{u[0]}}</span>${{u}}</span>`;
+      }}
       async function loadDashboard() {{
         const [clientsRes, tasksRes, templatesRes] = await Promise.all([
           fetch('/api/seo/clients'),
@@ -540,20 +567,21 @@ def seo_dashboard_html(user) -> str:
         document.getElementById('metricBlocked').textContent = tasks.filter(t => t.status === 'Blocked').length;
         document.getElementById('clientList').innerHTML = clients.length ? clients.map(client => `
           <tr>
-            <td><strong>${{client.company_name}}</strong><div class='muted'>${{client.industry || 'Unspecified'}}</div></td>
-            <td>${{client.service_tier}}</td>
+            <td><strong>${{client.company_name}}</strong><div class='muted'>${{client.industry || '—'}}</div></td>
+            <td><span class='badge'>${{client.service_tier}}</span></td>
             <td>${{client.start_date || '—'}}</td>
             <td>${{client.due_date || '—'}}</td>
-            <td>${{client.contact_person || '—'}}<div class='muted'>${{client.email || ''}}</div></td>
-          </tr>`).join('') : "<tr><td colspan='5' class='muted'>No clients yet.</td></tr>";
+            <td>${{client.contact_person || '—'}}</td>
+          </tr>`).join('') : "<tr><td colspan='5' class='muted' style='padding:20px 12px;'>No clients yet.</td></tr>";
         document.getElementById('taskList').innerHTML = tasks.length ? tasks.slice(0, 10).map(task => `
           <tr>
             <td><strong>${{task.task_name}}</strong><div class='muted'>${{task.company_name}}</div></td>
-            <td>${{task.category}}</td>
-            <td><span class='badge'>${{task.status}}</span></td>
+            <td><span class='badge gray'>${{task.category}}</span></td>
+            <td>${{assigneeChip(task.assigned_to_username)}}</td>
+            <td><span class='badge ${{statusClass(task.status)}}'>${{task.status}}</span></td>
             <td><select onchange="updateTaskStatus(${{task.id}}, this.value)">${{STATUSES.map(status => `<option value="${{status}}" ${{status === task.status ? 'selected' : ''}}>${{status}}</option>`).join('')}}</select></td>
-          </tr>`).join('') : "<tr><td colspan='4' class='muted'>No tasks yet.</td></tr>";
-        document.getElementById('templateSummary').innerHTML = templates.map(item => `<div class='metric'><strong>${{item.service_tier}}</strong><div class='muted'>${{item.task_count}} templated tasks</div></div>`).join('');
+          </tr>`).join('') : "<tr><td colspan='5' class='muted' style='padding:20px 12px;'>No tasks yet.</td></tr>";
+        document.getElementById('templateSummary').innerHTML = templates.map(item => `<div class='metric'><div class='label'>${{item.service_tier}}</div><div class='value' style='font-size:22px'>${{item.task_count}}</div><div class='muted'>tasks</div></div>`).join('');
       }}
       async function createClient(event) {{
         event.preventDefault();
@@ -587,17 +615,9 @@ def seo_clients_html() -> str:
     status_options_js = json.dumps(SEO_TASK_STATUSES)
     return f"""
     <div class='page-shell'>
-      <div class='topbar'>
-        <div>
-          <h1>Clients</h1>
-          <p class='muted'>All onboarded SEO clients.</p>
-        </div>
-        <div class='nav'>
-          <a href='/SEO'>Dashboard</a>
-          <a class='active' href='/SEO/clients'>Clients</a>
-          <a href='/SEO/tasks'>Tasks</a>
-          <a href='/logout'>Logout</a>
-        </div>
+      <div class='page-header'>
+        <h1>Clients</h1>
+        <p>All onboarded SEO clients.</p>
       </div>
       <div class='card'>
         <div style='display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;'>
@@ -685,17 +705,9 @@ def seo_tasks_html() -> str:
     tier_options = "".join(f"<option value='{t}'>{t}</option>" for t in SEO_SERVICE_TIERS)
     return f"""
     <div class='page-shell'>
-      <div class='topbar'>
-        <div>
-          <h1>Tasks</h1>
-          <p class='muted'>All client tasks across categories and tiers.</p>
-        </div>
-        <div class='nav'>
-          <a href='/SEO'>Dashboard</a>
-          <a href='/SEO/clients'>Clients</a>
-          <a class='active' href='/SEO/tasks'>Tasks</a>
-          <a href='/logout'>Logout</a>
-        </div>
+      <div class='page-header'>
+        <h1>Tasks</h1>
+        <p>All client tasks across categories and tiers.</p>
       </div>
       <div class='card'>
         <div style='display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;'>
@@ -706,7 +718,7 @@ def seo_tasks_html() -> str:
         </div>
         <table class='table' id='taskTable'>
           <thead>
-            <tr><th>Task</th><th>Client</th><th>Category</th><th>Status</th><th>Due</th><th>Update</th></tr>
+            <tr><th>Task</th><th>Client</th><th>Category</th><th>Assignee</th><th>Status</th><th>Due</th><th>Update</th></tr>
           </thead>
           <tbody id='taskRows'></tbody>
         </table>
@@ -714,6 +726,8 @@ def seo_tasks_html() -> str:
     </div>
     <script>
       const STATUSES = {status_options_js};
+      function statusClass(s) {{ return {{'Not Started':'gray','In Progress':'','Done':'green','Blocked':'red'}}[s]||''; }}
+      function assigneeChip(u) {{ return u ? `<span class="assignee-chip"><span class="av">${{u[0]}}</span>${{u}}</span>` : '<span class="muted">—</span>'; }}
       let allTasks = [];
       async function loadTasks() {{
         const params = new URLSearchParams(window.location.search);
@@ -737,13 +751,14 @@ def seo_tasks_html() -> str:
         );
         document.getElementById('taskRows').innerHTML = filtered.length ? filtered.map(t => `
           <tr>
-            <td><strong>${{t.task_name}}</strong><div class='muted' style='font-size:12px;'>${{t.task_description || ''}}</div></td>
+            <td><strong>${{t.task_name}}</strong><div class='muted'>${{t.task_description || ''}}</div></td>
             <td>${{t.company_name}}</td>
-            <td><span class='badge'>${{t.category}}</span></td>
-            <td><span class='badge' style='background:${{statusColor(t.status)}}'>${{t.status}}</span></td>
+            <td><span class='badge gray'>${{t.category}}</span></td>
+            <td>${{assigneeChip(t.assigned_to_username)}}</td>
+            <td><span class='badge ${{statusClass(t.status)}}'>${{t.status}}</span></td>
             <td>${{t.due_date || '—'}}</td>
             <td><select onchange="updateStatus(${{t.id}}, this.value)">${{STATUSES.map(s => `<option value="${{s}}" ${{s===t.status?'selected':''}}>${{s}}</option>`).join('')}}</select></td>
-          </tr>`).join('') : "<tr><td colspan='6' class='muted'>No tasks match.</td></tr>";
+          </tr>`).join('') : "<tr><td colspan='7' class='muted' style='padding:20px 12px'>No tasks match.</td></tr>";
       }}
       function statusColor(s) {{
         return {{
@@ -890,7 +905,7 @@ async def seo_dashboard(request: Request):
     user = current_user(request)
     if not user:
         return RedirectResponse(f"/login?next={quote('/SEO')}", status_code=302)
-    return render_page("SEO Dashboard", seo_dashboard_html(user))
+    return render_app_page("Dashboard", seo_dashboard_html(user), "dashboard", user)
 
 
 @app.get("/SEO/clients", response_class=HTMLResponse)
@@ -898,7 +913,7 @@ async def seo_clients_page(request: Request):
     user = current_user(request)
     if not user:
         return RedirectResponse(f"/login?next={quote('/SEO/clients')}", status_code=302)
-    return render_page("SEO Clients", seo_clients_html())
+    return render_app_page("Clients", seo_clients_html(), "clients", user)
 
 
 @app.get("/SEO/tasks", response_class=HTMLResponse)
@@ -906,7 +921,7 @@ async def seo_tasks_page(request: Request):
     user = current_user(request)
     if not user:
         return RedirectResponse(f"/login?next={quote('/SEO/tasks')}", status_code=302)
-    return render_page("SEO Tasks", seo_tasks_html())
+    return render_app_page("Tasks", seo_tasks_html(), "tasks", user)
 
 
 @app.get("/api/seo/templates")

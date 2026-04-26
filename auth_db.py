@@ -91,6 +91,14 @@ CREATE INDEX IF NOT EXISTS idx_seo_client_tasks_client_status ON seo_client_task
 CREATE INDEX IF NOT EXISTS idx_seo_client_tasks_category_status ON seo_client_tasks(category, status);
 """
 
+CATEGORY_ASSIGNEES = {
+    "keyword research": "lirha",
+    "on-page": "ivan",
+    "off-page": "ivan",
+    "technical": "alcuin",
+    "extras": "ivan",
+}
+
 SEO_TEMPLATE_DATA = {
     "Tier 1": [
         ("keyword research", "Baseline keyword set", "Identify primary commercial and branded keywords.", 10),
@@ -192,7 +200,15 @@ def init_db() -> None:
         conn.executescript(SCHEMA)
         ensure_column(conn, "employees", "desired_role", "TEXT NOT NULL DEFAULT 'user'")
         ensure_column(conn, "login", "role", "TEXT NOT NULL DEFAULT 'user'")
+        ensure_column(conn, "seo_task_templates", "default_assignee", "TEXT")
+        ensure_column(conn, "seo_client_tasks", "assigned_to_username", "TEXT")
         seed_seo_task_templates(conn)
+        # Apply category-based default assignees to all templates
+        for category, assignee in CATEGORY_ASSIGNEES.items():
+            conn.execute(
+                "UPDATE seo_task_templates SET default_assignee = ? WHERE category = ?",
+                (assignee, category),
+            )
         seed_bootstrap_admin(conn)
         conn.commit()
 
