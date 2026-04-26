@@ -238,6 +238,48 @@ button.danger:hover { background: #b91c1c; }
 .due-label { font-size: 11px; color: var(--text-muted); }
 .empty-col { font-size: 12px; color: var(--text-muted); text-align: center; padding: 18px 10px; }
 
+/* ── Calendar ── */
+.cal-page { display:flex; flex-direction:column; height:100vh; overflow:hidden; }
+.cal-toolbar { display:flex; align-items:center; gap:10px; padding:13px 24px; border-bottom:1px solid var(--border); background:var(--surface); flex-shrink:0; flex-wrap:wrap; }
+.cal-toolbar h1 { font-size:18px; font-weight:700; letter-spacing:-.02em; margin-right:4px; }
+.cal-nav-btn { background:var(--surface); color:var(--text); border:1px solid var(--border-strong); padding:5px 12px; font-size:15px; line-height:1; border-radius:var(--radius-sm); cursor:pointer; }
+.cal-nav-btn:hover { background:var(--bg); }
+.cal-week-label { font-size:14px; font-weight:600; min-width:200px; text-align:center; }
+.cal-head { display:grid; grid-template-columns:56px repeat(7,1fr); border-bottom:1px solid var(--border); background:var(--surface); flex-shrink:0; }
+.cal-head-spacer { border-right:1px solid var(--border); }
+.cal-head-cell { padding:9px 6px 8px; text-align:center; border-right:1px solid var(--border); }
+.cal-head-cell .dow { font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:.06em; }
+.cal-head-cell .dom { font-size:22px; font-weight:300; color:var(--text); line-height:1.2; width:34px; height:34px; display:flex; align-items:center; justify-content:center; border-radius:50%; margin:3px auto 0; }
+.cal-head-cell.today .dom { background:var(--primary); color:#fff; font-weight:700; }
+.cal-body { display:flex; flex:1; overflow-y:auto; min-height:0; }
+.cal-time-col { width:56px; flex-shrink:0; }
+.cal-time-label { height:64px; display:flex; align-items:flex-start; justify-content:flex-end; padding:4px 8px 0 0; font-size:10.5px; color:var(--text-muted); font-weight:500; white-space:nowrap; }
+.cal-days { display:grid; grid-template-columns:repeat(7,1fr); flex:1; border-left:1px solid var(--border); }
+.cal-day-col { border-right:1px solid var(--border); position:relative; cursor:pointer; }
+.cal-slot { height:32px; border-bottom:1px solid rgba(0,0,0,.04); box-sizing:border-box; }
+.cal-slot.hour-line { border-bottom:1px solid var(--border); }
+.cal-event { position:absolute; left:2px; right:2px; border-radius:4px; padding:3px 6px; font-size:11.5px; font-weight:600; color:#fff; overflow:hidden; cursor:pointer; z-index:1; line-height:1.3; box-sizing:border-box; }
+.cal-event:hover { filter:brightness(.88); }
+.cal-event-title { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.cal-event-time { font-size:10px; opacity:.82; font-weight:400; }
+/* Scheduling assistant */
+.sched-wrap { border:1px solid var(--border); border-radius:var(--radius-md); overflow:hidden; }
+.sched-time-axis { display:flex; padding-left:88px; background:var(--bg); border-bottom:1px solid var(--border); }
+.sched-axis-tick { font-size:10px; color:var(--text-muted); flex:1; padding:4px 0; text-align:left; }
+.sched-row { display:flex; align-items:center; border-bottom:1px solid var(--border); }
+.sched-row:last-child { border-bottom:none; }
+.sched-row-label { width:88px; flex-shrink:0; font-size:11.5px; font-weight:600; padding:6px 10px; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sched-row-track { flex:1; position:relative; height:32px; min-width:0; }
+.sched-block { position:absolute; top:3px; bottom:3px; border-radius:3px; }
+/* Availability modal */
+.avail-row { display:flex; align-items:center; gap:12px; padding:9px 0; border-bottom:1px solid var(--border); }
+.avail-row:last-child { border-bottom:none; }
+.avail-day { width:38px; font-size:12.5px; font-weight:600; flex-shrink:0; }
+/* Tab strip */
+.tab-strip { display:flex; gap:0; border-bottom:1px solid var(--border); margin-bottom:16px; }
+.tab-btn { padding:8px 16px; font-size:13px; font-weight:500; color:var(--text-muted); border:none; background:none; cursor:pointer; border-bottom:2px solid transparent; margin-bottom:-1px; }
+.tab-btn.active-tab { color:var(--primary); border-bottom-color:var(--primary); font-weight:600; }
+
 /* ── Mobile ── */
 @media (max-width: 900px) {
   .sidebar { transform: translateX(-100%); transition: transform 0.2s; }
@@ -332,6 +374,27 @@ class SEOTaskCreate(BaseModel):
         if value not in SEO_TASK_STATUSES:
             raise ValueError(f"status must be one of {SEO_TASK_STATUSES}")
         return value
+
+
+class CalendarEventCreate(BaseModel):
+    title: str = Field(..., min_length=1)
+    description: Optional[str] = None
+    start_datetime: str
+    end_datetime: str
+    is_all_day: bool = False
+    color: str = "#2563eb"
+    attendee_employee_ids: List[int] = []
+
+
+class AvailabilitySlot(BaseModel):
+    day_of_week: int
+    start_time: str = "09:00"
+    end_time: str = "17:00"
+    is_working: bool = True
+
+
+class AvailabilityUpdate(BaseModel):
+    slots: List[AvailabilitySlot]
 
 
 @dataclass
@@ -435,6 +498,7 @@ def sidebar_html(active: str, user) -> str:
         "dashboard": '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>',
         "clients":   '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
         "tasks":     '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
+        "calendar":  '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>',
         "logout":    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>',
     }
     def nav_link(key, label, href):
@@ -454,6 +518,7 @@ def sidebar_html(active: str, user) -> str:
         {nav_link('dashboard', 'Dashboard', '/SEO')}
         {nav_link('clients', 'Clients', '/SEO/clients')}
         {nav_link('tasks', 'Tasks', '/SEO/tasks')}
+        {nav_link('calendar', 'Calendar', '/SEO/calendar')}
       </div>
       <div class='sidebar-footer'>
         <div class='sidebar-user'>
@@ -960,6 +1025,430 @@ def seo_tasks_html() -> str:
     """
 
 
+def seo_calendar_html(user) -> str:
+    emp_id = user["id"] if user else 0
+    username = user["username"] if user else ""
+    day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    avail_rows = "".join(
+        f"""<div class='avail-row'>
+              <span class='avail-day'>{day_names[i]}</span>
+              <label style='display:flex;align-items:center;gap:5px;font-size:12.5px;font-weight:400;cursor:pointer;min-width:90px;flex-direction:row;'>
+                <input type='checkbox' name='working_{i}' {'checked' if i < 5 else ''} onchange="document.getElementById('availTimes_{i}').style.opacity=this.checked?'1':'0.35'">
+                Working
+              </label>
+              <div id='availTimes_{i}' style='display:flex;align-items:center;gap:6px;{"" if i < 5 else "opacity:.35;"}'>
+                <input type='time' name='start_{i}' value='09:00' style='width:108px;padding:5px 8px;font-size:12.5px;'>
+                <span style='color:var(--text-muted);'>–</span>
+                <input type='time' name='end_{i}' value='17:00' style='width:108px;padding:5px 8px;font-size:12.5px;'>
+              </div>
+            </div>"""
+        for i in range(7)
+    )
+    return f"""
+    <div class='cal-page'>
+      <div class='cal-toolbar'>
+        <h1>Calendar</h1>
+        <button class='cal-nav-btn' onclick='prevWeek()'>&#8249;</button>
+        <span class='cal-week-label' id='weekLabel'></span>
+        <button class='cal-nav-btn' onclick='nextWeek()'>&#8250;</button>
+        <button class='btn secondary' style='font-size:12.5px;padding:6px 13px;' onclick='goToday()'>Today</button>
+        <div style='margin-left:auto;display:flex;gap:8px;'>
+          <button class='btn secondary' style='font-size:12.5px;padding:6px 13px;' onclick='openAvailModal()'>My Availability</button>
+          <button class='btn btn-primary' style='font-size:12.5px;padding:6px 13px;' onclick='openEventModal()'>+ New Event</button>
+        </div>
+      </div>
+      <div class='cal-head' id='calHead'><div class='cal-head-spacer'></div></div>
+      <div class='cal-body'>
+        <div class='cal-time-col' id='timeCol'></div>
+        <div class='cal-days' id='calDays'></div>
+      </div>
+    </div>
+
+    <!-- New Event Modal -->
+    <div id='eventModal' style='display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center;'>
+      <div style='background:var(--surface);border-radius:var(--radius-lg);width:520px;max-width:96vw;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.18);'>
+        <div style='padding:22px 26px 0;'>
+          <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;'>
+            <span style='font-size:16px;font-weight:700;'>New Event</span>
+            <button onclick='closeEventModal()' style='background:none;border:none;font-size:20px;color:var(--text-muted);cursor:pointer;padding:0;line-height:1;'>&#215;</button>
+          </div>
+          <div class='tab-strip'>
+            <button class='tab-btn active-tab' id='tabBtnDetails' onclick='showTab("details")'>Details</button>
+            <button class='tab-btn' id='tabBtnSched' onclick='showTab("sched"); updateSchedAssistant()'>Find a Time</button>
+          </div>
+        </div>
+        <form id='newEventForm' onsubmit='submitEvent(event)' style='display:block;padding:0 26px 22px;'>
+          <!-- Details tab -->
+          <div id='tabDetails'>
+            <div style='display:flex;flex-direction:column;gap:13px;'>
+              <div>
+                <label class='form-label'>Title *</label>
+                <input name='title' required placeholder='Event title' autofocus>
+              </div>
+              <div style='display:grid;grid-template-columns:1fr 1fr;gap:12px;'>
+                <div>
+                  <label class='form-label'>Start Date *</label>
+                  <input name='start_date' type='date' required onchange='updateSchedAssistant()'>
+                </div>
+                <div>
+                  <label class='form-label'>End Date</label>
+                  <input name='end_date' type='date'>
+                </div>
+              </div>
+              <div style='display:grid;grid-template-columns:1fr 1fr;gap:12px;'>
+                <div>
+                  <label class='form-label'>Start Time</label>
+                  <input name='start_time' type='time' value='09:00'>
+                </div>
+                <div>
+                  <label class='form-label'>End Time</label>
+                  <input name='end_time' type='time' value='10:00'>
+                </div>
+              </div>
+              <div>
+                <label class='form-label'>Color</label>
+                <div style='display:flex;gap:8px;padding:4px 0;' id='colorPicker'>
+                  {''.join(f'<span onclick="selectColor(this,\'{c}\')" style="width:22px;height:22px;border-radius:50%;background:{c};cursor:pointer;border:2px solid transparent;" data-color="{c}"></span>' for c in ['#2563eb','#8b5cf6','#16a34a','#ea580c','#dc2626','#0891b2','#d97706'])}
+                </div>
+                <input type='hidden' name='color' value='#2563eb' id='colorInput'>
+              </div>
+              <div>
+                <label class='form-label'>Description</label>
+                <textarea name='description' placeholder='Optional notes...' style='min-height:60px;'></textarea>
+              </div>
+              <div>
+                <label class='form-label'>Attendees</label>
+                <div id='attendeeGrid' style='display:flex;flex-direction:column;gap:6px;padding:4px 0;'></div>
+              </div>
+            </div>
+          </div>
+          <!-- Find a Time tab -->
+          <div id='tabSched' style='display:none;'>
+            <div id='schedContent' style='min-height:120px;'></div>
+          </div>
+          <div style='display:flex;gap:10px;justify-content:flex-end;margin-top:22px;'>
+            <button type='button' class='btn secondary' onclick='closeEventModal()'>Cancel</button>
+            <button type='submit' class='btn btn-primary' id='eventSubmitBtn'>Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- My Availability Modal -->
+    <div id='availModal' style='display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;align-items:center;justify-content:center;'>
+      <div style='background:var(--surface);border-radius:var(--radius-lg);width:480px;max-width:96vw;box-shadow:0 20px 60px rgba(0,0,0,.18);'>
+        <div style='padding:22px 26px 0;'>
+          <div style='display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;'>
+            <span style='font-size:16px;font-weight:700;'>My Work Hours</span>
+            <button onclick='closeAvailModal()' style='background:none;border:none;font-size:20px;color:var(--text-muted);cursor:pointer;padding:0;line-height:1;'>&#215;</button>
+          </div>
+        </div>
+        <form id='availForm' onsubmit='submitAvailability(event)' style='display:block;padding:0 26px 22px;'>
+          {avail_rows}
+          <div style='display:flex;gap:10px;justify-content:flex-end;margin-top:20px;'>
+            <button type='button' class='btn secondary' onclick='closeAvailModal()'>Cancel</button>
+            <button type='submit' class='btn btn-primary' id='availSubmitBtn'>Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      const CAL_START = 7, CAL_END = 21, HOUR_PX = 64;
+      const DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+      const CURRENT_EMP_ID = {emp_id};
+      const CURRENT_USERNAME = '{username}';
+
+      let weekStart = getThisMonday();
+      let allEvents = [], allAvailability = [], allEmployees = [];
+
+      function getThisMonday() {{
+        const d = new Date(); d.setHours(0,0,0,0);
+        const day = d.getDay();
+        d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+        return d;
+      }}
+      function addDays(d, n) {{ const x = new Date(d); x.setDate(x.getDate()+n); return x; }}
+      function fmtDate(d) {{ return d.toISOString().split('T')[0]; }}
+      function fmtLabel(d) {{ return d.toLocaleDateString('en-US', {{month:'short',day:'numeric'}}); }}
+      function timeToMins(t) {{ const [h,m]=t.split(':').map(Number); return h*60+m; }}
+      function timeToY(t) {{ return (timeToMins(t) - CAL_START*60) / 60 * HOUR_PX; }}
+      function dtToY(dt) {{ return timeToY(dt.split('T')[1]||'00:00'); }}
+      function dtDurPx(s,e) {{
+        const sm=timeToMins(s.split('T')[1]||'00:00'), em=timeToMins(e.split('T')[1]||'00:00');
+        return Math.max((em-sm)/60*HOUR_PX, 22);
+      }}
+      function isToday(d) {{ const t=new Date(); t.setHours(0,0,0,0); return d.getTime()===t.getTime(); }}
+      function fmt12(t) {{
+        if (!t) return '';
+        const [h,m]=t.split(':').map(Number), ap=h<12?'AM':'PM', h12=h===0?12:h>12?h-12:h;
+        return `${{h12}}:${{String(m).padStart(2,'0')}} ${{ap}}`;
+      }}
+
+      // Load all static data once
+      async function loadAll() {{
+        const [empR, availR] = await Promise.all([fetch('/api/calendar/employees'), fetch('/api/calendar/availability')]);
+        allEmployees = await empR.json();
+        allAvailability = await availR.json();
+        // Populate attendee checkboxes
+        document.getElementById('attendeeGrid').innerHTML = allEmployees.map(e =>
+          `<label style='display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:400;cursor:pointer;flex-direction:row;'>
+            <input type='checkbox' name='attendee' value='${{e.employee_id}}' onchange='updateSchedAssistant()'>
+            <strong>${{e.username}}</strong> — ${{e.first_name}} ${{e.last_name}}
+          </label>`
+        ).join('');
+        // Pre-fill availability modal from server data
+        prefillAvailForm();
+      }}
+
+      function prefillAvailForm() {{
+        for (let i = 0; i < 7; i++) {{
+          const slot = allAvailability.find(a => a.employee_id === CURRENT_EMP_ID && a.day_of_week === i);
+          const working = document.querySelector(`[name=working_${{i}}]`);
+          const start = document.querySelector(`[name=start_${{i}}]`);
+          const end = document.querySelector(`[name=end_${{i}}]`);
+          if (slot) {{
+            if (working) working.checked = slot.is_working === 1;
+            if (start) start.value = slot.start_time;
+            if (end) end.value = slot.end_time;
+            const times = document.getElementById(`availTimes_${{i}}`);
+            if (times) times.style.opacity = (slot.is_working === 1) ? '1' : '0.35';
+          }}
+        }}
+      }}
+
+      // Load events for current week
+      async function loadWeek() {{
+        const start = fmtDate(weekStart);
+        const end = fmtDate(addDays(weekStart, 7));
+        const r = await fetch(`/api/calendar/events?start=${{start}}&end=${{end}}`);
+        allEvents = await r.json();
+        renderCalendar();
+      }}
+
+      function renderCalendar() {{
+        const totalPx = (CAL_END - CAL_START) * HOUR_PX;
+        // Header cells
+        const headEl = document.getElementById('calHead');
+        headEl.innerHTML = '<div class="cal-head-spacer"></div>' +
+          Array.from({{length:7}}, (_,i) => {{
+            const d = addDays(weekStart, i);
+            const cls = isToday(d) ? 'cal-head-cell today' : 'cal-head-cell';
+            return `<div class="${{cls}}"><div class="dow">${{DAYS[i]}}</div><div class="dom">${{d.getDate()}}</div></div>`;
+          }}).join('');
+        // Week label
+        document.getElementById('weekLabel').textContent =
+          `${{fmtLabel(weekStart)}} – ${{fmtLabel(addDays(weekStart,6))}}, ${{weekStart.getFullYear()}}`;
+        // Time column
+        document.getElementById('timeCol').innerHTML =
+          Array.from({{length: CAL_END - CAL_START}}, (_,i) => {{
+            const h = CAL_START + i;
+            const lbl = h===0?'12 AM':h<12?`${{h}} AM`:h===12?'12 PM':`${{h-12}} PM`;
+            return `<div class="cal-time-label">${{lbl}}</div>`;
+          }}).join('');
+        // Day columns
+        document.getElementById('calDays').innerHTML = Array.from({{length:7}}, (_,i) => {{
+          const d = addDays(weekStart, i);
+          const dateStr = fmtDate(d);
+          const dayEvs = allEvents.filter(e => e.start_datetime.startsWith(dateStr));
+          const slots = Array.from({{length:(CAL_END-CAL_START)*2}}, (_,j) =>
+            `<div class="cal-slot${{j%2===0?' hour-line':''}}"></div>`
+          ).join('');
+          const evBlocks = dayEvs.map(ev => {{
+            const top = dtToY(ev.start_datetime);
+            const height = dtDurPx(ev.start_datetime, ev.end_datetime);
+            const color = ev.color || '#2563eb';
+            const st = ev.start_datetime.split('T')[1]||'';
+            const et = ev.end_datetime.split('T')[1]||'';
+            return `<div class="cal-event" style="top:${{top}}px;height:${{height}}px;background:${{color}};"
+                      onclick="evClick(event,${{ev.id}},\`${{ev.title}}\`)">
+                      <div class="cal-event-title">${{ev.title}}</div>
+                      ${{height>36?`<div class="cal-event-time">${{fmt12(st)}} – ${{fmt12(et)}}</div>`:''}}
+                    </div>`;
+          }}).join('');
+          return `<div class="cal-day-col" style="height:${{totalPx}}px;" onclick="colClick(event,'${{dateStr}}')">${{slots}}${{evBlocks}}</div>`;
+        }}).join('');
+      }}
+
+      function colClick(e, dateStr) {{
+        if (e.target.closest('.cal-event')) return;
+        const col = e.currentTarget;
+        const rect = col.getBoundingClientRect();
+        const y = e.clientY - rect.top;
+        const snapMins = CAL_START*60 + Math.round(y/HOUR_PX*60/30)*30;
+        const h = Math.floor(snapMins/60), m = snapMins%60;
+        const eh = Math.floor((snapMins+60)/60), em = (snapMins+60)%60;
+        openEventModal(dateStr, `${{String(h).padStart(2,'0')}}:${{String(m).padStart(2,'0')}}`, `${{String(eh).padStart(2,'0')}}:${{String(em).padStart(2,'0')}}`);
+      }}
+
+      function evClick(e, id, title) {{
+        e.stopPropagation();
+        if (confirm(`Delete "${{title}}"?`)) {{
+          fetch('/api/calendar/events/'+id, {{method:'DELETE'}}).then(() => {{
+            allEvents = allEvents.filter(x => x.id !== id);
+            renderCalendar();
+          }});
+        }}
+      }}
+
+      function prevWeek() {{ weekStart = addDays(weekStart,-7); loadWeek(); }}
+      function nextWeek() {{ weekStart = addDays(weekStart,7); loadWeek(); }}
+      function goToday() {{ weekStart = getThisMonday(); loadWeek(); }}
+
+      // Color picker
+      function selectColor(el, color) {{
+        document.querySelectorAll('#colorPicker span').forEach(s => s.style.border='2px solid transparent');
+        el.style.border = '2px solid #111';
+        document.getElementById('colorInput').value = color;
+      }}
+      // Select first color on load
+      setTimeout(() => {{ const first = document.querySelector('#colorPicker span'); if(first) selectColor(first,'#2563eb'); }}, 100);
+
+      // New Event Modal
+      function openEventModal(dateStr, startTime, endTime) {{
+        document.getElementById('eventModal').style.display = 'flex';
+        if (dateStr) {{
+          document.querySelector('[name=start_date]').value = dateStr;
+          document.querySelector('[name=end_date]').value = dateStr;
+        }}
+        if (startTime) document.querySelector('[name=start_time]').value = startTime;
+        if (endTime) document.querySelector('[name=end_time]').value = endTime;
+        showTab('details');
+      }}
+      function closeEventModal() {{
+        document.getElementById('eventModal').style.display = 'none';
+        document.getElementById('newEventForm').reset();
+        setTimeout(() => {{ const first = document.querySelector('#colorPicker span'); if(first) selectColor(first,'#2563eb'); }}, 50);
+      }}
+      document.getElementById('eventModal').addEventListener('click', function(e) {{
+        if (e.target === this) closeEventModal();
+      }});
+
+      function showTab(tab) {{
+        document.getElementById('tabDetails').style.display = tab==='details'?'':'none';
+        document.getElementById('tabSched').style.display = tab==='sched'?'':'none';
+        document.getElementById('tabBtnDetails').classList.toggle('active-tab', tab==='details');
+        document.getElementById('tabBtnSched').classList.toggle('active-tab', tab==='sched');
+      }}
+
+      async function submitEvent(e) {{
+        e.preventDefault();
+        const btn = document.getElementById('eventSubmitBtn');
+        btn.disabled = true; btn.textContent = 'Saving...';
+        const fd = new FormData(e.target);
+        const startDate = fd.get('start_date');
+        const endDate = fd.get('end_date') || startDate;
+        const startTime = fd.get('start_time') || '09:00';
+        const endTime = fd.get('end_time') || '10:00';
+        const attendees = [...document.querySelectorAll('[name=attendee]:checked')].map(c => parseInt(c.value));
+        const body = {{
+          title: fd.get('title'),
+          description: fd.get('description') || null,
+          start_datetime: `${{startDate}}T${{startTime}}`,
+          end_datetime: `${{endDate}}T${{endTime}}`,
+          color: fd.get('color') || '#2563eb',
+          attendee_employee_ids: attendees,
+        }};
+        const r = await fetch('/api/calendar/events', {{method:'POST', headers:{{'Content-Type':'application/json'}}, body:JSON.stringify(body)}});
+        btn.disabled=false; btn.textContent='Save';
+        if (!r.ok) {{ alert('Failed to save'); return; }}
+        const ev = await r.json();
+        allEvents.push(ev);
+        closeEventModal();
+        renderCalendar();
+      }}
+
+      // Scheduling assistant
+      function updateSchedAssistant() {{
+        if (document.getElementById('tabSched').style.display === 'none') return;
+        const dateStr = document.querySelector('[name=start_date]')?.value;
+        const selected = [...document.querySelectorAll('[name=attendee]:checked')].map(c => parseInt(c.value));
+        const container = document.getElementById('schedContent');
+        if (!selected.length) {{
+          container.innerHTML = '<div style="color:var(--text-muted);font-size:13px;padding:20px 0;">Select attendees in the Details tab.</div>';
+          return;
+        }}
+        const SCHED_S=8, SCHED_E=18, PX=42;
+        const totalPx = (SCHED_E - SCHED_S) * PX;
+        let dayOfWeek = 1;
+        if (dateStr) {{
+          const d = new Date(dateStr+'T00:00:00');
+          dayOfWeek = d.getDay()===0 ? 6 : d.getDay()-1;
+        }}
+        const ticks = Array.from({{length: SCHED_E-SCHED_S+1}}, (_,i) => {{
+          const h = SCHED_S+i;
+          return `<div class="sched-axis-tick">${{h<12?h+'AM':h===12?'12PM':(h-12)+'PM'}}</div>`;
+        }}).join('');
+        const rows = selected.map(empId => {{
+          const emp = allEmployees.find(e => e.employee_id===empId);
+          if (!emp) return '';
+          const avail = allAvailability.find(a => a.employee_id===empId && a.day_of_week===dayOfWeek);
+          let availBlock = '';
+          if (avail && avail.is_working) {{
+            const left = Math.max((timeToMins(avail.start_time)-SCHED_S*60)/60*PX, 0);
+            const width = Math.max((timeToMins(avail.end_time)-timeToMins(avail.start_time))/60*PX, 0);
+            availBlock = `<div class="sched-block" style="left:${{left}}px;width:${{width}}px;background:#dcfce7;border:1px solid #86efac;"></div>`;
+          }}
+          const busy = allEvents.filter(ev =>
+            dateStr && ev.start_datetime.startsWith(dateStr) &&
+            ev.attendees && ev.attendees.some(a => a.employee_id===empId)
+          ).map(ev => {{
+            const left = Math.max((timeToMins(ev.start_datetime.split('T')[1]||'00:00')-SCHED_S*60)/60*PX, 0);
+            const width = Math.max((timeToMins(ev.end_datetime.split('T')[1]||'00:00')-timeToMins(ev.start_datetime.split('T')[1]||'00:00'))/60*PX, 0);
+            return `<div class="sched-block" style="left:${{left}}px;width:${{width}}px;background:#dbeafe;border:1px solid #93c5fd;" title="${{ev.title}}"></div>`;
+          }}).join('');
+          return `<div class="sched-row">
+            <div class="sched-row-label">${{emp.username}}</div>
+            <div class="sched-row-track" style="width:${{totalPx}}px;">${{availBlock}}${{busy}}</div>
+          </div>`;
+        }}).join('');
+        container.innerHTML = `
+          <div class="sched-wrap">
+            <div class="sched-time-axis">${{ticks}}</div>
+            ${{rows}}
+          </div>
+          <div style="margin-top:10px;display:flex;gap:14px;font-size:11.5px;color:var(--text-muted);">
+            <span style="display:flex;align-items:center;gap:5px;"><span style="width:12px;height:12px;background:#dcfce7;border:1px solid #86efac;border-radius:2px;display:inline-block;"></span>Available</span>
+            <span style="display:flex;align-items:center;gap:5px;"><span style="width:12px;height:12px;background:#dbeafe;border:1px solid #93c5fd;border-radius:2px;display:inline-block;"></span>Busy</span>
+          </div>`;
+      }}
+
+      // Availability modal
+      function openAvailModal() {{
+        document.getElementById('availModal').style.display = 'flex';
+        prefillAvailForm();
+      }}
+      function closeAvailModal() {{
+        document.getElementById('availModal').style.display = 'none';
+      }}
+      document.getElementById('availModal').addEventListener('click', function(e) {{
+        if (e.target === this) closeAvailModal();
+      }});
+
+      async function submitAvailability(e) {{
+        e.preventDefault();
+        const btn = document.getElementById('availSubmitBtn');
+        btn.disabled=true; btn.textContent='Saving...';
+        const form = e.target;
+        const slots = Array.from({{length:7}}, (_,i) => ({{
+          day_of_week: i,
+          start_time: form.querySelector(`[name=start_${{i}}]`)?.value || '09:00',
+          end_time: form.querySelector(`[name=end_${{i}}]`)?.value || '17:00',
+          is_working: form.querySelector(`[name=working_${{i}}]`)?.checked || false,
+        }}));
+        const r = await fetch('/api/calendar/availability', {{method:'POST', headers:{{'Content-Type':'application/json'}}, body:JSON.stringify({{slots}})}});
+        btn.disabled=false; btn.textContent='Save';
+        if (!r.ok) {{ alert('Failed to save'); return; }}
+        const ar = await fetch('/api/calendar/availability');
+        allAvailability = await ar.json();
+        closeAvailModal();
+      }}
+
+      loadAll().then(() => loadWeek());
+    </script>
+    """
+
+
 app = FastAPI(
     title="BYU-Idaho Student Advisor RAG API",
     version="1.2.0",
@@ -1237,6 +1726,145 @@ class AdminUserCreate(BaseModel):
     first_name: str = "Admin"
     last_name: str = "User"
     role: str = "admin"
+
+
+@app.get("/SEO/calendar", response_class=HTMLResponse)
+async def seo_calendar_page(request: Request):
+    user = current_user(request)
+    if not user:
+        return RedirectResponse(f"/login?next={quote('/SEO/calendar')}", status_code=302)
+    return render_app_page("Calendar", seo_calendar_html(user), "calendar", user)
+
+
+@app.get("/api/calendar/employees")
+async def list_calendar_employees(request: Request):
+    require_user(request)
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT l.employee_id, l.username, e.first_name, e.last_name
+            FROM login l
+            JOIN employees e ON e.id = l.employee_id
+            WHERE e.is_active = 1
+            ORDER BY l.username
+            """
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+@app.get("/api/calendar/events")
+async def list_calendar_events(request: Request, start: Optional[str] = None, end: Optional[str] = None):
+    require_user(request)
+    with get_connection() as conn:
+        if start and end:
+            events = conn.execute(
+                """
+                SELECT ce.*, l.username AS created_by_username
+                FROM calendar_events ce
+                LEFT JOIN login l ON l.employee_id = ce.created_by_employee_id
+                WHERE ce.start_datetime >= ? AND ce.start_datetime < ?
+                ORDER BY ce.start_datetime
+                """,
+                (start, end),
+            ).fetchall()
+        else:
+            events = conn.execute(
+                """
+                SELECT ce.*, l.username AS created_by_username
+                FROM calendar_events ce
+                LEFT JOIN login l ON l.employee_id = ce.created_by_employee_id
+                ORDER BY ce.start_datetime
+                """
+            ).fetchall()
+        result = []
+        for ev in events:
+            ev_dict = dict(ev)
+            attendees = conn.execute(
+                """
+                SELECT l.username, l.employee_id
+                FROM calendar_event_attendees cea
+                JOIN login l ON l.employee_id = cea.employee_id
+                WHERE cea.event_id = ?
+                """,
+                (ev_dict["id"],),
+            ).fetchall()
+            ev_dict["attendees"] = [dict(a) for a in attendees]
+            result.append(ev_dict)
+        return result
+
+
+@app.post("/api/calendar/events")
+async def create_calendar_event(request: Request, payload: CalendarEventCreate):
+    user = require_user(request)
+    with get_connection() as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO calendar_events (title, description, start_datetime, end_datetime, is_all_day, color, created_by_employee_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (payload.title, payload.description, payload.start_datetime, payload.end_datetime,
+             int(payload.is_all_day), payload.color, user["id"]),
+        )
+        event_id = cursor.lastrowid
+        for emp_id in payload.attendee_employee_ids:
+            conn.execute(
+                "INSERT OR IGNORE INTO calendar_event_attendees (event_id, employee_id) VALUES (?, ?)",
+                (event_id, emp_id),
+            )
+        conn.commit()
+        ev = dict(conn.execute("SELECT * FROM calendar_events WHERE id = ?", (event_id,)).fetchone())
+        attendees = conn.execute(
+            "SELECT l.username, l.employee_id FROM calendar_event_attendees cea JOIN login l ON l.employee_id = cea.employee_id WHERE cea.event_id = ?",
+            (event_id,),
+        ).fetchall()
+        ev["attendees"] = [dict(a) for a in attendees]
+        return ev
+
+
+@app.delete("/api/calendar/events/{event_id}")
+async def delete_calendar_event(event_id: int, request: Request):
+    require_user(request)
+    with get_connection() as conn:
+        existing = conn.execute("SELECT id FROM calendar_events WHERE id = ?", (event_id,)).fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Event not found")
+        conn.execute("DELETE FROM calendar_events WHERE id = ?", (event_id,))
+        conn.commit()
+        return {"ok": True}
+
+
+@app.get("/api/calendar/availability")
+async def get_calendar_availability(request: Request):
+    require_user(request)
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT ca.*, l.username
+            FROM calendar_availability ca
+            JOIN login l ON l.employee_id = ca.employee_id
+            """
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+@app.post("/api/calendar/availability")
+async def set_calendar_availability(request: Request, payload: AvailabilityUpdate):
+    user = require_user(request)
+    with get_connection() as conn:
+        for slot in payload.slots:
+            conn.execute(
+                """
+                INSERT INTO calendar_availability (employee_id, day_of_week, start_time, end_time, is_working)
+                VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(employee_id, day_of_week) DO UPDATE SET
+                    start_time = excluded.start_time,
+                    end_time = excluded.end_time,
+                    is_working = excluded.is_working
+                """,
+                (user["id"], slot.day_of_week, slot.start_time, slot.end_time, int(slot.is_working)),
+            )
+        conn.commit()
+        return {"ok": True}
 
 
 @app.post("/api/admin/create-user")

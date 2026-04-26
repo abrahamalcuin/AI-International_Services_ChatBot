@@ -89,6 +89,44 @@ CREATE INDEX IF NOT EXISTS idx_seo_clients_company_name ON seo_clients(company_n
 CREATE INDEX IF NOT EXISTS idx_seo_templates_tier_category_sort ON seo_task_templates(service_tier, category, sort_order);
 CREATE INDEX IF NOT EXISTS idx_seo_client_tasks_client_status ON seo_client_tasks(client_id, status);
 CREATE INDEX IF NOT EXISTS idx_seo_client_tasks_category_status ON seo_client_tasks(category, status);
+
+CREATE TABLE IF NOT EXISTS calendar_availability (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    employee_id INTEGER NOT NULL,
+    day_of_week INTEGER NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
+    start_time TEXT NOT NULL DEFAULT '09:00',
+    end_time TEXT NOT NULL DEFAULT '17:00',
+    is_working INTEGER NOT NULL DEFAULT 1,
+    UNIQUE(employee_id, day_of_week),
+    FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS calendar_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT,
+    start_datetime TEXT NOT NULL,
+    end_datetime TEXT NOT NULL,
+    is_all_day INTEGER NOT NULL DEFAULT 0,
+    color TEXT NOT NULL DEFAULT '#2563eb',
+    created_by_employee_id INTEGER,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (created_by_employee_id) REFERENCES employees(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS calendar_event_attendees (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id INTEGER NOT NULL,
+    employee_id INTEGER NOT NULL,
+    response TEXT NOT NULL DEFAULT 'pending' CHECK (response IN ('pending', 'accepted', 'declined', 'tentative')),
+    UNIQUE(event_id, employee_id),
+    FOREIGN KEY (event_id) REFERENCES calendar_events(id) ON DELETE CASCADE,
+    FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_calendar_events_start ON calendar_events(start_datetime);
+CREATE INDEX IF NOT EXISTS idx_calendar_avail_emp ON calendar_availability(employee_id, day_of_week);
 """
 
 CATEGORY_ASSIGNEES = {
