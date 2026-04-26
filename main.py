@@ -235,7 +235,7 @@ def current_user(request: Request):
     with get_connection() as conn:
         return conn.execute(
             """
-            SELECT employees.id, employees.first_name, employees.last_name, employees.email, login.username
+            SELECT employees.id, employees.first_name, employees.last_name, employees.email, login.username, login.role
             FROM employees
             JOIN login ON login.employee_id = employees.id
             WHERE employees.id = ?
@@ -296,7 +296,7 @@ async def login_submit(
     with get_connection() as conn:
         row = conn.execute(
             """
-            SELECT login.password_hash, employees.id, employees.is_active
+            SELECT login.password_hash, login.role, employees.id, employees.is_active
             FROM login
             JOIN employees ON employees.id = login.employee_id
             WHERE login.username = ?
@@ -375,8 +375,8 @@ async def onboarding_submit(
     with get_connection() as conn:
         try:
             conn.execute(
-                "INSERT INTO login (employee_id, username, password_hash) VALUES (?, ?, ?)",
-                (employee["id"], username.strip(), password_hash),
+                "INSERT INTO login (employee_id, username, password_hash, role) VALUES (?, ?, ?, ?)",
+                (employee["id"], username.strip(), password_hash, employee["desired_role"]),
             )
             conn.execute(
                 "UPDATE employees SET invite_token = NULL, invite_expires_at = NULL WHERE id = ?",
@@ -398,7 +398,7 @@ async def seo_dashboard(request: Request):
         return RedirectResponse(f"/login?next={quote('/SEO')}", status_code=302)
     return render_page(
         "SEO",
-        f"<div class='card'><h1>SEO Dashboard</h1><p>Welcome, {user['first_name']} {user['last_name']}.</p><p>You are signed in as <strong>{user['username']}</strong>.</p><p>This route is now protected and prompts for login when visited anonymously.</p><a class='button' href='/logout'>Logout</a></div>",
+        f"<div class='card'><h1>SEO Dashboard</h1><p>Welcome, {user['first_name']} {user['last_name']}.</p><p>You are signed in as <strong>{user['username']}</strong>.</p><p>Your role is <strong>{user['role']}</strong>.</p><p>This route is now protected and prompts for login when visited anonymously.</p><a class='button' href='/logout'>Logout</a></div>",
     )
 
 

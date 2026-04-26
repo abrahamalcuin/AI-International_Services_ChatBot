@@ -6,7 +6,7 @@ BASE_URL = "https://alcuinabraham.com/onboarding"
 
 
 def add_employee(args):
-    create_employee(args.employee_code, args.first_name, args.last_name, args.email)
+    create_employee(args.employee_code, args.first_name, args.last_name, args.email, args.role)
     print("Employee added.")
 
 
@@ -27,6 +27,7 @@ def main():
     add_parser.add_argument("first_name")
     add_parser.add_argument("last_name")
     add_parser.add_argument("email")
+    add_parser.add_argument("--role", default="user", choices=["user", "admin"])
     add_parser.set_defaults(func=add_employee)
 
     invite_parser = subparsers.add_parser("generate-invite")
