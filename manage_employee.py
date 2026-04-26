@@ -2,7 +2,7 @@ import argparse
 
 from auth_db import create_employee, generate_invite, init_db
 
-BASE_URL = "https://alcuinabraham.com/onboarding"
+BASE_URL = "https://ai-international-services-chatbot.onrender.com/onboarding"
 
 
 def add_employee(args):

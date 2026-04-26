@@ -151,12 +151,42 @@ def seed_seo_task_templates(conn: sqlite3.Connection) -> None:
             )
 
 
+def seed_bootstrap_admin(conn: sqlite3.Connection) -> None:
+    """Create initial admin from BOOTSTRAP_ADMIN_* env vars if no login rows exist."""
+    email = os.getenv("BOOTSTRAP_ADMIN_EMAIL", "").strip()
+    username = os.getenv("BOOTSTRAP_ADMIN_USERNAME", "").strip()
+    password = os.getenv("BOOTSTRAP_ADMIN_PASSWORD", "").strip()
+    if not (email and username and password):
+        return
+    if conn.execute("SELECT COUNT(*) FROM login").fetchone()[0]:
+        return  # already have users, skip
+    from passlib.context import CryptContext
+    pwd_ctx = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+    # Upsert employee
+    existing = conn.execute("SELECT id FROM employees WHERE email = ?", (email,)).fetchone()
+    if existing:
+        employee_id = existing[0]
+    else:
+        cursor = conn.execute(
+            "INSERT INTO employees (employee_code, first_name, last_name, email, desired_role) VALUES (?, ?, ?, ?, ?)",
+            ("ADMIN001", "Admin", "User", email, "admin"),
+        )
+        employee_id = cursor.lastrowid
+    # Create login if not exists
+    if not conn.execute("SELECT id FROM login WHERE employee_id = ?", (employee_id,)).fetchone():
+        conn.execute(
+            "INSERT INTO login (employee_id, username, password_hash, role) VALUES (?, ?, ?, ?)",
+            (employee_id, username, pwd_ctx.hash(password), "admin"),
+        )
+
+
 def init_db() -> None:
     with sqlite3.connect(DB_PATH) as conn:
         conn.executescript(SCHEMA)
         ensure_column(conn, "employees", "desired_role", "TEXT NOT NULL DEFAULT 'user'")
         ensure_column(conn, "login", "role", "TEXT NOT NULL DEFAULT 'user'")
         seed_seo_task_templates(conn)
+        seed_bootstrap_admin(conn)
         conn.commit()
 
 
