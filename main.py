@@ -217,6 +217,27 @@ button.danger:hover { background: #b91c1c; }
 .login-card h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 6px; }
 .login-card .subtitle { color: var(--text-secondary); font-size: 13px; margin-bottom: 28px; }
 
+/* ── Kanban Board ── */
+.board-filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; align-items: center; }
+.board-filters select, .board-filters input { width: auto; padding: 7px 11px; font-size: 13px; }
+.board-wrap { overflow-x: auto; padding-bottom: 24px; }
+.board { display: flex; gap: 14px; min-width: max-content; align-items: flex-start; }
+.board-col { width: 268px; flex-shrink: 0; display: flex; flex-direction: column; background: #f8f9fb; border-radius: var(--radius-lg); border: 1px solid var(--border); overflow: hidden; }
+.col-header { display: flex; align-items: center; gap: 8px; padding: 13px 14px 11px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.col-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.col-title { font-size: 12.5px; font-weight: 700; letter-spacing: -.01em; flex: 1; }
+.col-count { font-size: 11px; font-weight: 600; color: var(--text-muted); background: var(--bg); padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border); }
+.col-cards { padding: 10px; display: flex; flex-direction: column; gap: 8px; min-height: 60px; }
+.task-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 12px 13px; transition: box-shadow 0.15s, border-color 0.15s; position: relative; overflow: hidden; }
+.task-card:hover { box-shadow: var(--shadow-md); border-color: var(--border-strong); }
+.task-card-strip { height: 3px; border-radius: 999px; margin-bottom: 10px; }
+.task-card-title { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 3px; line-height: 1.4; }
+.task-card-client { font-size: 11.5px; color: var(--text-muted); margin-bottom: 10px; }
+.task-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.task-card-footer select { padding: 3px 6px; font-size: 11px; border-radius: 4px; width: auto; }
+.due-label { font-size: 11px; color: var(--text-muted); }
+.empty-col { font-size: 12px; color: var(--text-muted); text-align: center; padding: 18px 10px; }
+
 /* ── Mobile ── */
 @media (max-width: 900px) {
   .sidebar { transform: translateX(-100%); transition: transform 0.2s; }
@@ -699,87 +720,123 @@ def seo_clients_html() -> str:
 
 
 def seo_tasks_html() -> str:
-    category_options = "".join(f"<option value='{c}'>{c.title()}</option>" for c in ["keyword research", "on-page", "off-page", "technical", "extras"])
-    status_options = "".join(f"<option value='{s}'>{s}</option>" for s in SEO_TASK_STATUSES)
     status_options_js = json.dumps(SEO_TASK_STATUSES)
-    tier_options = "".join(f"<option value='{t}'>{t}</option>" for t in SEO_SERVICE_TIERS)
+    categories = [
+        ("keyword research", "Keyword Research", "#8b5cf6"),
+        ("on-page",          "On-Page",          "#2563eb"),
+        ("off-page",         "Off-Page",          "#16a34a"),
+        ("technical",        "Technical",         "#ea580c"),
+        ("extras",           "Extras",            "#6b7280"),
+    ]
+    cols_js = json.dumps([{"key": k, "label": l, "color": c} for k, l, c in categories])
     return f"""
-    <div class='page-shell'>
+    <div class='page-shell' style='max-width:none;'>
       <div class='page-header'>
         <h1>Tasks</h1>
-        <p>All client tasks across categories and tiers.</p>
+        <p>Kanban board — all client tasks by category.</p>
       </div>
-      <div class='card'>
-        <div style='display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;'>
-          <input id='taskSearch' placeholder='Search tasks or clients...' style='flex:1;min-width:200px;'>
-          <select id='catFilter'><option value=''>All categories</option>{category_options}</select>
-          <select id='statusFilter'><option value=''>All statuses</option>{status_options}</select>
-          <select id='tierFilter2'><option value=''>All tiers</option>{tier_options}</select>
-        </div>
-        <table class='table' id='taskTable'>
-          <thead>
-            <tr><th>Task</th><th>Client</th><th>Category</th><th>Assignee</th><th>Status</th><th>Due</th><th>Update</th></tr>
-          </thead>
-          <tbody id='taskRows'></tbody>
-        </table>
+      <div class='board-filters'>
+        <input id='boardSearch' placeholder='Search tasks or clients...' style='width:220px;'>
+        <select id='clientFilter'><option value=''>All clients</option></select>
+        <select id='statusFilter'><option value=''>All statuses</option>
+          {''.join(f"<option value='{s}'>{s}</option>" for s in SEO_TASK_STATUSES)}
+        </select>
+        <select id='assigneeFilter'><option value=''>All assignees</option></select>
+      </div>
+      <div class='board-wrap'>
+        <div class='board' id='board'></div>
       </div>
     </div>
     <script>
       const STATUSES = {status_options_js};
-      function statusClass(s) {{ return {{'Not Started':'gray','In Progress':'','Done':'green','Blocked':'red'}}[s]||''; }}
-      function assigneeChip(u) {{ return u ? `<span class="assignee-chip"><span class="av">${{u[0]}}</span>${{u}}</span>` : '<span class="muted">—</span>'; }}
-      let allTasks = [];
-      async function loadTasks() {{
-        const params = new URLSearchParams(window.location.search);
-        const res = await fetch('/api/seo/tasks');
-        allTasks = await res.json();
-        const clientId = params.get('client_id');
-        if (clientId) {{
-          allTasks = allTasks.filter(t => String(t.client_id) === clientId);
-        }}
-        renderTasks();
+      const COLS = {cols_js};
+
+      const STRIP_COLOR = {{'Not Started':'#e2e5ea','In Progress':'#2563eb','Done':'#16a34a','Blocked':'#dc2626'}};
+
+      function assigneeChip(u) {{
+        if (!u) return '<span class="muted" style="font-size:11px">Unassigned</span>';
+        const colors = {{'lirha':'#8b5cf6','ivan':'#16a34a','alcuin':'#2563eb'}};
+        const bg = colors[u] || '#6b7280';
+        return `<span class="assignee-chip"><span class="av" style="background:${{bg}}">${{u[0].toUpperCase()}}</span>${{u}}</span>`;
       }}
-      function renderTasks() {{
-        const q = document.getElementById('taskSearch').value.toLowerCase();
-        const cat = document.getElementById('catFilter').value;
+
+      let allTasks = [], allClients = [];
+
+      async function load() {{
+        const [tr, cr] = await Promise.all([fetch('/api/seo/tasks'), fetch('/api/seo/clients')]);
+        allTasks = await tr.json();
+        allClients = await cr.json();
+        const clientSel = document.getElementById('clientFilter');
+        allClients.forEach(c => {{ const o = document.createElement('option'); o.value = c.id; o.textContent = c.company_name; clientSel.appendChild(o); }});
+        const assignees = [...new Set(allTasks.map(t => t.assigned_to_username).filter(Boolean))];
+        const aSel = document.getElementById('assigneeFilter');
+        assignees.forEach(a => {{ const o = document.createElement('option'); o.value = a; o.textContent = a; aSel.appendChild(o); }});
+        render();
+      }}
+
+      function filtered() {{
+        const q = document.getElementById('boardSearch').value.toLowerCase();
+        const cId = document.getElementById('clientFilter').value;
         const stat = document.getElementById('statusFilter').value;
-        const tier = document.getElementById('tierFilter2').value;
-        const filtered = allTasks.filter(t =>
+        const asgn = document.getElementById('assigneeFilter').value;
+        return allTasks.filter(t =>
           (!q || t.task_name.toLowerCase().includes(q) || (t.company_name||'').toLowerCase().includes(q)) &&
-          (!cat || t.category === cat) &&
-          (!stat || t.status === stat)
+          (!cId || String(t.client_id) === cId) &&
+          (!stat || t.status === stat) &&
+          (!asgn || t.assigned_to_username === asgn)
         );
-        document.getElementById('taskRows').innerHTML = filtered.length ? filtered.map(t => `
-          <tr>
-            <td><strong>${{t.task_name}}</strong><div class='muted'>${{t.task_description || ''}}</div></td>
-            <td>${{t.company_name}}</td>
-            <td><span class='badge gray'>${{t.category}}</span></td>
-            <td>${{assigneeChip(t.assigned_to_username)}}</td>
-            <td><span class='badge ${{statusClass(t.status)}}'>${{t.status}}</span></td>
-            <td>${{t.due_date || '—'}}</td>
-            <td><select onchange="updateStatus(${{t.id}}, this.value)">${{STATUSES.map(s => `<option value="${{s}}" ${{s===t.status?'selected':''}}>${{s}}</option>`).join('')}}</select></td>
-          </tr>`).join('') : "<tr><td colspan='7' class='muted' style='padding:20px 12px'>No tasks match.</td></tr>";
       }}
-      function statusColor(s) {{
-        return {{
-          'Not Started': '#f1f5f9',
-          'In Progress': '#e0f2fe',
-          'Done': '#dcfce7',
-          'Blocked': '#fee2e2'
-        }}[s] || '#f1f5f9';
+
+      function render() {{
+        const tasks = filtered();
+        document.getElementById('board').innerHTML = COLS.map(col => {{
+          const cards = tasks.filter(t => t.category === col.key);
+          return `
+            <div class='board-col'>
+              <div class='col-header'>
+                <span class='col-dot' style='background:${{col.color}}'></span>
+                <span class='col-title'>${{col.label}}</span>
+                <span class='col-count'>${{cards.length}}</span>
+              </div>
+              <div class='col-cards'>
+                ${{cards.length ? cards.map(t => `
+                  <div class='task-card'>
+                    <div class='task-card-strip' style='background:${{STRIP_COLOR[t.status]||"#e2e5ea"}}'></div>
+                    <div class='task-card-title'>${{t.task_name}}</div>
+                    <div class='task-card-client'>${{t.company_name}}</div>
+                    <div class='task-card-footer'>
+                      ${{assigneeChip(t.assigned_to_username)}}
+                      <div style='display:flex;align-items:center;gap:6px;'>
+                        ${{t.due_date ? `<span class='due-label'>📅 ${{t.due_date}}</span>` : ''}}
+                        <select onchange="updateStatus(${{t.id}}, this.value)" style='padding:3px 5px;font-size:11px;border-radius:4px;border:1px solid #e2e5ea;'>
+                          ${{STATUSES.map(s => `<option value="${{s}}" ${{s===t.status?'selected':''}}>${{s}}</option>`).join('')}}
+                        </select>
+                      </div>
+                    </div>
+                  </div>`).join('') : "<div class='empty-col'>No tasks</div>"}}
+              </div>
+            </div>`;
+        }}).join('');
       }}
+
       async function updateStatus(id, status) {{
         const res = await fetch('/api/seo/tasks/' + id, {{
-          method: 'PATCH',
-          headers: {{ 'Content-Type': 'application/json' }},
-          body: JSON.stringify({{ status }})
+          method: 'PATCH', headers: {{'Content-Type':'application/json'}},
+          body: JSON.stringify({{status}})
         }});
         if (!res.ok) {{ alert('Update failed'); return; }}
-        await loadTasks();
+        const updated = await res.json();
+        const task = allTasks.find(t => t.id === id);
+        if (task) task.status = updated.status;
+        render();
       }}
-      ['taskSearch', 'catFilter', 'statusFilter', 'tierFilter2'].forEach(id => document.getElementById(id).addEventListener('change', renderTasks));
-      document.getElementById('taskSearch').addEventListener('input', renderTasks);
-      loadTasks();
+
+      ['boardSearch','clientFilter','statusFilter','assigneeFilter'].forEach(id => {{
+        document.getElementById(id).addEventListener('input', render);
+        document.getElementById(id).addEventListener('change', render);
+      }});
+
+      load();
     </script>
     """
 
