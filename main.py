@@ -1010,6 +1010,50 @@ async def update_seo_task(task_id: int, request: Request, payload: SEOTaskStatus
         return dict(row)
 
 
+class AdminUserCreate(BaseModel):
+    secret: str
+    email: str
+    username: str
+    password: str
+    first_name: str = "Admin"
+    last_name: str = "User"
+    role: str = "admin"
+
+
+@app.post("/api/admin/create-user")
+async def admin_create_user(payload: AdminUserCreate):
+    expected = os.getenv("ADMIN_SECRET", "")
+    if not expected or payload.secret != expected:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    from passlib.context import CryptContext
+    pwd_ctx = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+    with get_connection() as conn:
+        existing_emp = conn.execute("SELECT id FROM employees WHERE email = ?", (payload.email,)).fetchone()
+        if existing_emp:
+            employee_id = existing_emp[0]
+        else:
+            cursor = conn.execute(
+                "INSERT INTO employees (employee_code, first_name, last_name, email, desired_role) VALUES (?, ?, ?, ?, ?)",
+                (f"EMP{secrets.token_hex(4).upper()}", payload.first_name, payload.last_name, payload.email, payload.role),
+            )
+            employee_id = cursor.lastrowid
+        existing_login = conn.execute("SELECT id FROM login WHERE employee_id = ?", (employee_id,)).fetchone()
+        if existing_login:
+            conn.execute(
+                "UPDATE login SET username = ?, password_hash = ?, role = ? WHERE employee_id = ?",
+                (payload.username, pwd_ctx.hash(payload.password), payload.role, employee_id),
+            )
+            action = "updated"
+        else:
+            conn.execute(
+                "INSERT INTO login (employee_id, username, password_hash, role) VALUES (?, ?, ?, ?)",
+                (employee_id, payload.username, pwd_ctx.hash(payload.password), payload.role),
+            )
+            action = "created"
+        conn.commit()
+    return {"ok": True, "action": action, "username": payload.username}
+
+
 @app.post("/ask", response_model=AskResponse)
 async def ask(payload: AskRequest) -> AskResponse:
     if GEMINI_CLIENT is None or not EMBEDDING_INDEX:
