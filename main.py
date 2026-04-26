@@ -116,6 +116,26 @@ a { color: inherit; text-decoration: none; }
 .sidebar-nav a svg { flex-shrink: 0; opacity: .7; }
 .sidebar-nav a.active svg { opacity: 1; }
 .nav-section { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: rgba(255,255,255,.25); padding: 14px 12px 6px; }
+.nav-tree { display: grid; gap: 2px; }
+.nav-tree summary {
+  list-style: none;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 13px; font-weight: 500;
+  color: rgba(255,255,255,.55);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.nav-tree summary::-webkit-details-marker { display: none; }
+.nav-tree summary:hover { background: rgba(255,255,255,.07); color: rgba(255,255,255,.9); }
+.nav-tree[open] summary, .nav-tree.is-active summary { background: rgba(255,255,255,.12); color: #fff; }
+.nav-tree-label { display: inline-flex; align-items: center; gap: 10px; }
+.nav-tree-caret { font-size: 11px; opacity: .8; transition: transform 0.15s; }
+.nav-tree[open] .nav-tree-caret { transform: rotate(90deg); }
+.nav-tree-links { display: grid; gap: 2px; padding: 4px 0 2px 36px; }
+.nav-tree-links a { font-size: 12.5px; padding: 8px 10px; color: rgba(255,255,255,.5); }
+.nav-tree-links a.active { background: rgba(255,255,255,.09); color: #fff; }
 .sidebar-footer {
   padding: 14px 14px 18px;
   border-top: 1px solid rgba(255,255,255,.07);
@@ -202,6 +222,28 @@ button.danger:hover { background: #b91c1c; }
 .badge.red { background: #fef2f2; color: var(--danger); border-color: rgba(220,38,38,.15); }
 .badge.gray { background: #f8fafc; color: #64748b; border-color: rgba(100,116,139,.15); }
 
+.hero-card { padding: 28px; display: grid; gap: 18px; }
+.hero-card h2 { margin-bottom: 0; font-size: 24px; font-weight: 700; letter-spacing: -0.03em; }
+.hero-card p { max-width: 72ch; color: var(--text-secondary); }
+.stat-grid { display: grid; gap: 16px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.metric-subtle { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+.insight-list { display: grid; gap: 12px; }
+.insight-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.progress-track { flex: 1; height: 10px; background: #edf1f6; border-radius: 999px; overflow: hidden; }
+.progress-bar { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #2563eb, #60a5fa); }
+.split-grid { display: grid; gap: 16px; grid-template-columns: 1.2fr 0.8fr; }
+.stack { display: grid; gap: 16px; }
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 18px; }
+.card-head h2 { margin-bottom: 0; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.chip { display: inline-flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 999px; background: #f8fafc; border: 1px solid var(--border); font-size: 12.5px; color: var(--text-secondary); }
+.editor-layout { display: grid; gap: 16px; grid-template-columns: 260px 1fr; align-items: start; }
+.template-task-list { display: grid; gap: 12px; }
+.template-task-card { padding: 18px; border: 1px solid var(--border); border-radius: var(--radius-md); background: #fbfcfe; display: grid; gap: 12px; }
+.template-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.template-toolbar .button { white-space: nowrap; }
+.hint-box { padding: 14px 16px; border-radius: var(--radius-md); background: #f8fafc; border: 1px solid var(--border); color: var(--text-secondary); font-size: 12.5px; }
+
 /* ── Avatar chip ── */
 .assignee-chip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px 2px 4px; border-radius: 999px; background: #f1f5f9; border: 1px solid var(--border); font-size: 11.5px; font-weight: 500; color: var(--text-secondary); }
 .assignee-chip .av { width: 18px; height: 18px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; text-transform: uppercase; }
@@ -286,6 +328,7 @@ button.danger:hover { background: #b91c1c; }
   .sidebar.open { transform: translateX(0); }
   .main { margin-left: 0; }
   .page-shell { padding: 16px; }
+  .stat-grid, .split-grid, .editor-layout { grid-template-columns: 1fr; }
   .grid.two, .grid.three { grid-template-columns: 1fr; }
   .mobile-menu-btn { display: flex !important; }
 }
@@ -374,6 +417,27 @@ class SEOTaskCreate(BaseModel):
         if value not in SEO_TASK_STATUSES:
             raise ValueError(f"status must be one of {SEO_TASK_STATUSES}")
         return value
+
+
+class SEOTemplateTaskUpdate(BaseModel):
+    id: Optional[int] = None
+    category: str
+    task_name: str = Field(..., min_length=1)
+    task_description: Optional[str] = None
+    sort_order: int = 0
+    default_assignee: Optional[str] = None
+    is_active: bool = True
+
+    @validator("category")
+    def validate_category(cls, value: str) -> str:
+        valid = ["keyword research", "on-page", "off-page", "technical", "extras"]
+        if value not in valid:
+            raise ValueError(f"category must be one of {valid}")
+        return value
+
+
+class SEOTemplateTierUpdate(BaseModel):
+    tasks: List[SEOTemplateTaskUpdate]
 
 
 class CalendarEventCreate(BaseModel):
@@ -504,6 +568,9 @@ def sidebar_html(active: str, user) -> str:
     def nav_link(key, label, href):
         cls = "active" if active == key else ""
         return f"<a href='{href}' class='{cls}'>{nav_icon[key]}{label}</a>"
+    client_active = active in {"clients", "client-add", "templates"}
+    client_tree_class = "nav-tree is-active" if client_active else "nav-tree"
+    client_tree_open = "open" if client_active else ""
     return f"""
     <button class='mobile-menu-btn' onclick="document.querySelector('.sidebar').classList.toggle('open')">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -516,7 +583,17 @@ def sidebar_html(active: str, user) -> str:
       <div class='sidebar-nav'>
         <div class='nav-section'>Main</div>
         {nav_link('dashboard', 'Dashboard', '/SEO')}
-        {nav_link('clients', 'Clients', '/SEO/clients')}
+        <details class='{client_tree_class}' {client_tree_open}>
+          <summary>
+            <span class='nav-tree-label'>{nav_icon['clients']}Clients</span>
+            <span class='nav-tree-caret'>&#8250;</span>
+          </summary>
+          <div class='nav-tree-links'>
+            <a href='/SEO/clients/add' class='{'active' if active == 'client-add' else ''}'>Add client</a>
+            <a href='/SEO/clients' class='{'active' if active == 'clients' else ''}'>View clients</a>
+            <a href='/SEO/templates' class='{'active' if active == 'templates' else ''}'>Template editor</a>
+          </div>
+        </details>
         {nav_link('tasks', 'Tasks', '/SEO/tasks')}
         {nav_link('calendar', 'Calendar', '/SEO/calendar')}
       </div>
@@ -563,11 +640,37 @@ def require_user(request: Request):
 
 def seo_metrics() -> dict:
     with get_connection() as conn:
+        task_total = conn.execute("SELECT COUNT(*) FROM seo_client_tasks").fetchone()[0]
+        done_count = conn.execute("SELECT COUNT(*) FROM seo_client_tasks WHERE status = 'Done'").fetchone()[0]
+        blocked_count = conn.execute("SELECT COUNT(*) FROM seo_client_tasks WHERE status = 'Blocked'").fetchone()[0]
+        overdue_count = conn.execute("SELECT COUNT(*) FROM seo_client_tasks WHERE due_date IS NOT NULL AND due_date < DATE('now') AND status != 'Done'").fetchone()[0]
+        due_soon_count = conn.execute("SELECT COUNT(*) FROM seo_client_tasks WHERE due_date IS NOT NULL AND due_date BETWEEN DATE('now') AND DATE('now', '+7 day') AND status != 'Done'").fetchone()[0]
+        completed_this_week = conn.execute("SELECT COUNT(*) FROM seo_client_tasks WHERE completed_at IS NOT NULL AND DATE(completed_at) >= DATE('now', '-6 day')").fetchone()[0]
+        in_progress_count = conn.execute("SELECT COUNT(*) FROM seo_client_tasks WHERE status = 'In Progress'").fetchone()[0]
+        client_count = conn.execute("SELECT COUNT(*) FROM seo_clients").fetchone()[0]
+        tier_rows = conn.execute("SELECT service_tier, COUNT(*) AS total FROM seo_clients GROUP BY service_tier ORDER BY service_tier").fetchall()
+        assignee_rows = conn.execute(
+            """
+            SELECT assigned_to_username, COUNT(*) AS total,
+                   SUM(CASE WHEN status = 'Done' THEN 1 ELSE 0 END) AS done_total
+            FROM seo_client_tasks
+            WHERE assigned_to_username IS NOT NULL AND TRIM(assigned_to_username) != ''
+            GROUP BY assigned_to_username
+            ORDER BY total DESC, assigned_to_username ASC
+            """
+        ).fetchall()
         return {
-            "client_count": conn.execute("SELECT COUNT(*) FROM seo_clients").fetchone()[0],
-            "task_count": conn.execute("SELECT COUNT(*) FROM seo_client_tasks").fetchone()[0],
-            "blocked_count": conn.execute("SELECT COUNT(*) FROM seo_client_tasks WHERE status = 'Blocked'").fetchone()[0],
-            "done_count": conn.execute("SELECT COUNT(*) FROM seo_client_tasks WHERE status = 'Done'").fetchone()[0],
+            "client_count": client_count,
+            "task_count": task_total,
+            "blocked_count": blocked_count,
+            "done_count": done_count,
+            "overdue_count": overdue_count,
+            "due_soon_count": due_soon_count,
+            "completed_this_week": completed_this_week,
+            "in_progress_count": in_progress_count,
+            "completion_pct": round((done_count / task_total) * 100) if task_total else 0,
+            "tier_rows": [dict(row) for row in tier_rows],
+            "assignee_rows": [dict(row) for row in assignee_rows],
         }
 
 
@@ -597,22 +700,115 @@ def create_client_tasks(conn, client_id: int, service_tier: str, due_date: Optio
 
 def seo_dashboard_html(user) -> str:
     metrics = seo_metrics()
+    team_rows = metrics["assignee_rows"][:4]
+    team_html = "".join(
+        f"""
+        <div class='insight-row'>
+          <span class='chip'><span class='av'>{row['assigned_to_username'][0].upper()}</span>{row['assigned_to_username']}</span>
+          <div class='progress-track'><div class='progress-bar' style='width:{round((row['done_total'] / row['total']) * 100) if row['total'] else 0}%;'></div></div>
+          <strong>{round((row['done_total'] / row['total']) * 100) if row['total'] else 0}%</strong>
+        </div>
+        """
+        for row in team_rows
+    ) or "<p class='muted'>No team assignments yet.</p>"
+    tier_html = "".join(
+        f"<div class='chip'><strong>{row['service_tier']}</strong><span>{row['total']} clients</span></div>"
+        for row in metrics["tier_rows"]
+    ) or "<p class='muted'>No client tiers yet.</p>"
+    return f"""
+    <div class='page-shell'>
+      <div class='card hero-card'>
+        <div class='page-header'>
+          <h1>Dashboard</h1>
+          <p>Good morning, {user['first_name']}. Here’s the aggregate delivery view for the SEO workspace.</p>
+        </div>
+        <div class='stat-grid'>
+          <div class='metric'>
+            <div class='label'>Active clients</div>
+            <div class='value'>{metrics['client_count']}</div>
+            <div class='metric-subtle'>Across all service tiers</div>
+          </div>
+          <div class='metric'>
+            <div class='label'>Overall completion</div>
+            <div class='value'>{metrics['completion_pct']}%</div>
+            <div class='metric-subtle'>{metrics['done_count']} of {metrics['task_count']} tasks done</div>
+          </div>
+          <div class='metric'>
+            <div class='label'>Open workload</div>
+            <div class='value'>{max(metrics['task_count'] - metrics['done_count'], 0)}</div>
+            <div class='metric-subtle'>{metrics['in_progress_count']} currently in progress</div>
+          </div>
+          <div class='metric'>
+            <div class='label'>Overdue tasks</div>
+            <div class='value'>{metrics['overdue_count']}</div>
+            <div class='metric-subtle'>{metrics['due_soon_count']} due in the next 7 days</div>
+          </div>
+        </div>
+      </div>
+      <div class='split-grid'>
+        <div class='stack'>
+          <div class='card'>
+            <div class='card-head'>
+              <div>
+                <h2>Delivery pulse</h2>
+                <p class='muted'>Pure aggregate indicators, no client-by-client breakdown on the homepage.</p>
+              </div>
+              <span class='badge {'red' if metrics['blocked_count'] else 'green'}'>{metrics['blocked_count']} blocked</span>
+            </div>
+            <div class='insight-list'>
+              <div class='insight-row'><span>Tasks completed this week</span><strong>{metrics['completed_this_week']}</strong></div>
+              <div class='insight-row'><span>Tasks in progress</span><strong>{metrics['in_progress_count']}</strong></div>
+              <div class='insight-row'><span>Tasks due soon</span><strong>{metrics['due_soon_count']}</strong></div>
+              <div class='insight-row'><span>Blocked work</span><strong>{metrics['blocked_count']}</strong></div>
+            </div>
+          </div>
+          <div class='card'>
+            <div class='card-head'>
+              <div>
+                <h2>Team progress</h2>
+                <p class='muted'>Completion by assignee, based on total assigned tasks.</p>
+              </div>
+            </div>
+            <div class='insight-list'>{team_html}</div>
+          </div>
+        </div>
+        <div class='stack'>
+          <div class='card'>
+            <div class='card-head'>
+              <div>
+                <h2>Tier mix</h2>
+                <p class='muted'>How your current client load is distributed.</p>
+              </div>
+            </div>
+            <div class='chip-row'>{tier_html}</div>
+          </div>
+          <div class='card'>
+            <div class='card-head'>
+              <div>
+                <h2>Workspace focus</h2>
+                <p class='muted'>A quick aggregate read before drilling into clients, templates, or tasks.</p>
+              </div>
+            </div>
+            <div class='hint-box'>
+              Keep the dashboard high-level. Client management, add client, and template editing now live under the Clients navigation tree for a cleaner workflow.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+
+
+def seo_add_client_html() -> str:
     tier_options = "".join(f"<option value='{tier}'>{tier}</option>" for tier in SEO_SERVICE_TIERS)
-    status_options_js = json.dumps(SEO_TASK_STATUSES)
     return f"""
     <div class='page-shell'>
       <div class='page-header'>
-        <h1>Dashboard</h1>
-        <p>Good to see you, {user['first_name']}.</p>
-      </div>
-      <div class='grid three'>
-        <div class='metric'><div class='label'>Clients</div><div class='value' id='metricClients'>{metrics['client_count']}</div></div>
-        <div class='metric'><div class='label'>Total tasks</div><div class='value' id='metricOpen'>{metrics['task_count']}</div></div>
-        <div class='metric'><div class='label'>Blocked</div><div class='value' id='metricBlocked'>{metrics['blocked_count']}</div></div>
+        <h1>Add client</h1>
+        <p>Create a new SEO client and automatically generate the tier-based task set.</p>
       </div>
       <div class='grid two'>
         <div class='card'>
-          <h2>Add client</h2>
           <form id='clientForm'>
             <div class='grid two'>
               <label>Company name<input name='company_name' required></label>
@@ -625,95 +821,164 @@ def seo_dashboard_html(user) -> str:
               <label>Due date<input name='due_date' type='date'></label>
               <label>Service tier<select name='service_tier'>{tier_options}</select></label>
             </div>
-            <label>WordPress / website credentials<textarea name='credentials' placeholder='Stored here because it was a required field. Consider encrypted storage later.'></textarea></label>
+            <label>WordPress / website credentials<textarea name='credentials' placeholder='Plain text storage for now, per current requirement.'></textarea></label>
             <label>Notes<textarea name='notes'></textarea></label>
-            <button type='submit'>Create client and tasks</button>
+            <div style='display:flex;justify-content:flex-end;gap:10px;'>
+              <a href='/SEO/clients' class='button secondary'>Cancel</a>
+              <button type='submit'>Create client and tasks</button>
+            </div>
           </form>
         </div>
-        <div class='card'>
-          <h2>Template summary</h2>
-          <p class='muted'>Each tier uses normalized, deduplicated task templates.</p>
-          <div id='templateSummary' class='grid'></div>
-        </div>
-      </div>
-      <div class='grid two'>
-        <div class='card'>
-          <h2>Clients</h2>
-          <table class='table'>
-            <thead><tr><th>Client</th><th>Tier</th><th>Start</th><th>Due</th><th>Contact</th></tr></thead>
-            <tbody id='clientList'></tbody>
-          </table>
-        </div>
-        <div class='card'>
-          <h2>Recent tasks</h2>
-          <table class='table'>
-            <thead><tr><th>Task</th><th>Category</th><th>Assignee</th><th>Status</th><th>Update</th></tr></thead>
-            <tbody id='taskList'></tbody>
-          </table>
+        <div class='stack'>
+          <div class='card'>
+            <h2>What happens next</h2>
+            <div class='hint-box'>
+              Once a client is created, the system copies the active task template for the selected tier and assigns default owners where available.
+            </div>
+          </div>
+          <div class='card'>
+            <h2>Suggested workflow</h2>
+            <div class='insight-list'>
+              <div class='insight-row'><span>1. Add the client basics</span><strong>Now</strong></div>
+              <div class='insight-row'><span>2. Review generated tasks</span><strong>Tasks board</strong></div>
+              <div class='insight-row'><span>3. Adjust template rules later</span><strong>Template editor</strong></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
     <script>
-      const STATUSES = {status_options_js};
-      function statusClass(s) {{
-        return {{  'Not Started':'gray','In Progress':'','Done':'green','Blocked':'red' }}[s]||'';
-      }}
-      function assigneeChip(u) {{
-        if (!u) return '<span class="muted">—</span>';
-        return `<span class="assignee-chip"><span class="av">${{u[0]}}</span>${{u}}</span>`;
-      }}
-      async function loadDashboard() {{
-        const [clientsRes, tasksRes, templatesRes] = await Promise.all([
-          fetch('/api/seo/clients'),
-          fetch('/api/seo/tasks'),
-          fetch('/api/seo/templates')
-        ]);
-        const clients = await clientsRes.json();
-        const tasks = await tasksRes.json();
-        const templates = await templatesRes.json();
-        document.getElementById('metricClients').textContent = clients.length;
-        document.getElementById('metricOpen').textContent = tasks.length;
-        document.getElementById('metricBlocked').textContent = tasks.filter(t => t.status === 'Blocked').length;
-        document.getElementById('clientList').innerHTML = clients.length ? clients.map(client => `
-          <tr>
-            <td><strong>${{client.company_name}}</strong><div class='muted'>${{client.industry || '—'}}</div></td>
-            <td><span class='badge'>${{client.service_tier}}</span></td>
-            <td>${{client.start_date || '—'}}</td>
-            <td>${{client.due_date || '—'}}</td>
-            <td>${{client.contact_person || '—'}}</td>
-          </tr>`).join('') : "<tr><td colspan='5' class='muted' style='padding:20px 12px;'>No clients yet.</td></tr>";
-        document.getElementById('taskList').innerHTML = tasks.length ? tasks.slice(0, 10).map(task => `
-          <tr>
-            <td><strong>${{task.task_name}}</strong><div class='muted'>${{task.company_name}}</div></td>
-            <td><span class='badge gray'>${{task.category}}</span></td>
-            <td>${{assigneeChip(task.assigned_to_username)}}</td>
-            <td><span class='badge ${{statusClass(task.status)}}'>${{task.status}}</span></td>
-            <td><select onchange="updateTaskStatus(${{task.id}}, this.value)">${{STATUSES.map(status => `<option value="${{status}}" ${{status === task.status ? 'selected' : ''}}>${{status}}</option>`).join('')}}</select></td>
-          </tr>`).join('') : "<tr><td colspan='5' class='muted' style='padding:20px 12px;'>No tasks yet.</td></tr>";
-        document.getElementById('templateSummary').innerHTML = templates.map(item => `<div class='metric'><div class='label'>${{item.service_tier}}</div><div class='value' style='font-size:22px'>${{item.task_count}}</div><div class='muted'>tasks</div></div>`).join('');
-      }}
       async function createClient(event) {{
         event.preventDefault();
         const payload = Object.fromEntries(new FormData(event.target).entries());
         const res = await fetch('/api/seo/clients', {{ method: 'POST', headers: {{ 'Content-Type': 'application/json' }}, body: JSON.stringify(payload) }});
         const data = await res.json();
         if (!res.ok) {{ alert(data.detail || 'Unable to create client'); return; }}
-        event.target.reset();
-        alert(`Created ${{data.company_name}} and generated ${{data.generated_task_count}} tasks.`);
-        await loadDashboard();
-      }}
-      async function updateTaskStatus(taskId, status) {{
-        const res = await fetch(`/api/seo/tasks/${{taskId}}`, {{ method: 'PATCH', headers: {{ 'Content-Type': 'application/json' }}, body: JSON.stringify({{ status }}) }});
-        if (!res.ok) {{
-          const data = await res.json();
-          alert(data.detail || 'Unable to update task');
-          return;
-        }}
-        await loadDashboard();
+        window.location.href = '/SEO/clients';
       }}
       document.addEventListener('DOMContentLoaded', () => {{
         document.getElementById('clientForm').addEventListener('submit', createClient);
-        loadDashboard();
+      }});
+    </script>
+    """
+
+
+def seo_template_editor_html() -> str:
+    tier_options = "".join(f"<option value='{tier}'>{tier}</option>" for tier in SEO_SERVICE_TIERS)
+    return f"""
+    <div class='page-shell'>
+      <div class='page-header'>
+        <h1>Template editor</h1>
+        <p>Adjust tier templates before pushing the updated task bundle into future client setups.</p>
+      </div>
+      <div class='editor-layout'>
+        <div class='stack'>
+          <div class='card'>
+            <h2>Template scope</h2>
+            <label>Service tier<select id='templateTier'>{tier_options}</select></label>
+            <div class='hint-box' style='margin-top:14px;'>
+              Changes here update the saved template for future clients. Existing client task lists stay untouched unless you deliberately edit them in the tasks area.
+            </div>
+          </div>
+          <div class='card'>
+            <h2>Editor tips</h2>
+            <div class='insight-list'>
+              <div class='insight-row'><span>Keep names concise</span><strong>Better scanability</strong></div>
+              <div class='insight-row'><span>Use sort order gaps</span><strong>Easier reordering</strong></div>
+              <div class='insight-row'><span>Disable instead of delete</span><strong>Safer rollout</strong></div>
+            </div>
+          </div>
+        </div>
+        <div class='stack'>
+          <div class='card'>
+            <div class='template-toolbar'>
+              <div>
+                <h2>Task bundle</h2>
+                <p class='muted'>Edit names, categories, assignees, and activation state.</p>
+              </div>
+              <div style='display:flex;gap:10px;'>
+                <button type='button' class='secondary' id='addTemplateTaskBtn'>Add task</button>
+                <button type='button' id='saveTemplateBtn'>Save template</button>
+              </div>
+            </div>
+            <div id='templateTaskList' class='template-task-list'></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+      const CATEGORIES = ['keyword research', 'on-page', 'off-page', 'technical', 'extras'];
+      let templateTasks = [];
+      function taskCard(task, index) {{
+        return `
+          <div class='template-task-card' data-index='${{index}}'>
+            <div class='grid two'>
+              <label>Task name<input data-field='task_name' value="${{(task.task_name || '').replace(/"/g, '&quot;')}}"></label>
+              <label>Category
+                <select data-field='category'>
+                  ${{CATEGORIES.map(cat => `<option value="${{cat}}" ${{cat === task.category ? 'selected' : ''}}>${{cat}}</option>`).join('')}}
+                </select>
+              </label>
+              <label>Default assignee<input data-field='default_assignee' value="${{(task.default_assignee || '').replace(/"/g, '&quot;')}}"></label>
+              <label>Sort order<input data-field='sort_order' type='number' value='${{task.sort_order ?? 0}}'></label>
+            </div>
+            <label>Task description<textarea data-field='task_description'>${{task.task_description || ''}}</textarea></label>
+            <div style='display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;'>
+              <label style='flex-direction:row;align-items:center;gap:8px;color:var(--text);'>
+                <input data-field='is_active' type='checkbox' style='width:auto;' ${{task.is_active ? 'checked' : ''}}>
+                Active in future client rollouts
+              </label>
+              <button type='button' class='secondary' onclick='removeTemplateTask(${{index}})'>Remove</button>
+            </div>
+          </div>`;
+      }}
+      function renderTemplateTasks() {{
+        const container = document.getElementById('templateTaskList');
+        container.innerHTML = templateTasks.length
+          ? templateTasks.map((task, index) => taskCard(task, index)).join('')
+          : "<div class='hint-box'>No tasks yet for this tier. Add one to start building the template.</div>";
+        container.querySelectorAll('.template-task-card').forEach(card => {{
+          const index = Number(card.dataset.index);
+          card.querySelectorAll('[data-field]').forEach(el => {{
+            el.addEventListener('input', () => updateTemplateField(index, el.dataset.field, el.type === 'checkbox' ? el.checked : el.value));
+            el.addEventListener('change', () => updateTemplateField(index, el.dataset.field, el.type === 'checkbox' ? el.checked : el.value));
+          }});
+        }});
+      }}
+      function updateTemplateField(index, field, value) {{
+        templateTasks[index][field] = field === 'sort_order' ? Number(value || 0) : value;
+      }}
+      function removeTemplateTask(index) {{
+        templateTasks.splice(index, 1);
+        renderTemplateTasks();
+      }}
+      function addTemplateTask() {{
+        templateTasks.push({{ task_name: '', category: 'keyword research', task_description: '', sort_order: (templateTasks.length + 1) * 10, default_assignee: '', is_active: true }});
+        renderTemplateTasks();
+      }}
+      async function loadTemplateTier() {{
+        const tier = document.getElementById('templateTier').value;
+        const res = await fetch(`/api/seo/templates/${{encodeURIComponent(tier)}}`);
+        templateTasks = await res.json();
+        renderTemplateTasks();
+      }}
+      async function saveTemplateTier() {{
+        const tier = document.getElementById('templateTier').value;
+        const res = await fetch(`/api/seo/templates/${{encodeURIComponent(tier)}}`, {{
+          method: 'PUT',
+          headers: {{ 'Content-Type': 'application/json' }},
+          body: JSON.stringify({{ tasks: templateTasks }})
+        }});
+        const data = await res.json();
+        if (!res.ok) {{ alert(data.detail || 'Unable to save template'); return; }}
+        alert(`Saved ${{data.saved_count}} tasks for ${{tier}}.`);
+        await loadTemplateTier();
+      }}
+      document.addEventListener('DOMContentLoaded', () => {{
+        document.getElementById('templateTier').addEventListener('change', loadTemplateTier);
+        document.getElementById('addTemplateTaskBtn').addEventListener('click', addTemplateTask);
+        document.getElementById('saveTemplateBtn').addEventListener('click', saveTemplateTier);
+        loadTemplateTier();
       }});
     </script>
     """
@@ -1581,6 +1846,22 @@ async def seo_clients_page(request: Request):
     return render_app_page("Clients", seo_clients_html(), "clients", user)
 
 
+@app.get("/SEO/clients/add", response_class=HTMLResponse)
+async def seo_add_client_page(request: Request):
+    user = current_user(request)
+    if not user:
+        return RedirectResponse(f"/login?next={quote('/SEO/clients/add')}", status_code=302)
+    return render_app_page("Add client", seo_add_client_html(), "client-add", user)
+
+
+@app.get("/SEO/templates", response_class=HTMLResponse)
+async def seo_templates_page(request: Request):
+    user = current_user(request)
+    if not user:
+        return RedirectResponse(f"/login?next={quote('/SEO/templates')}", status_code=302)
+    return render_app_page("Template editor", seo_template_editor_html(), "templates", user)
+
+
 @app.get("/SEO/tasks", response_class=HTMLResponse)
 async def seo_tasks_page(request: Request):
     user = current_user(request)
@@ -1595,6 +1876,52 @@ async def list_seo_templates(request: Request):
     with get_connection() as conn:
         rows = conn.execute("SELECT service_tier, COUNT(*) AS task_count FROM seo_task_templates WHERE is_active = 1 GROUP BY service_tier ORDER BY service_tier").fetchall()
         return [dict(row) for row in rows]
+
+
+@app.get("/api/seo/templates/{service_tier}")
+async def get_seo_template_tier(service_tier: str, request: Request):
+    require_user(request)
+    if service_tier not in SEO_SERVICE_TIERS:
+        raise HTTPException(status_code=404, detail="Service tier not found")
+    with get_connection() as conn:
+        rows = conn.execute(
+            """
+            SELECT id, category, task_name, task_description, sort_order, default_assignee, is_active
+            FROM seo_task_templates
+            WHERE service_tier = ?
+            ORDER BY sort_order, id
+            """,
+            (service_tier,),
+        ).fetchall()
+        return [dict(row) for row in rows]
+
+
+@app.put("/api/seo/templates/{service_tier}")
+async def update_seo_template_tier(service_tier: str, request: Request, payload: SEOTemplateTierUpdate):
+    require_user(request)
+    if service_tier not in SEO_SERVICE_TIERS:
+        raise HTTPException(status_code=404, detail="Service tier not found")
+    with get_connection() as conn:
+        conn.execute("DELETE FROM seo_task_templates WHERE service_tier = ?", (service_tier,))
+        for index, task in enumerate(payload.tasks):
+            conn.execute(
+                """
+                INSERT INTO seo_task_templates
+                (service_tier, category, task_name, task_description, sort_order, default_assignee, is_active)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    service_tier,
+                    task.category,
+                    task.task_name.strip(),
+                    task.task_description,
+                    task.sort_order if task.sort_order is not None else (index + 1) * 10,
+                    task.default_assignee,
+                    1 if task.is_active else 0,
+                ),
+            )
+        conn.commit()
+    return {"ok": True, "saved_count": len(payload.tasks)}
 
 
 @app.get("/api/seo/clients")
