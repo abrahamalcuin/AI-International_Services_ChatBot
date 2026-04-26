@@ -170,7 +170,7 @@ def _upsert_bootstrap_user(conn: sqlite3.Connection, pwd_ctx, code: str, email: 
 
 
 def seed_bootstrap_admin(conn: sqlite3.Connection) -> None:
-    """Create admin accounts from BOOTSTRAP_ADMIN_* env vars on first startup."""
+    """Upsert admin accounts from BOOTSTRAP_ADMIN_* env vars on every startup."""
     from passlib.context import CryptContext
     pwd_ctx = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
@@ -184,6 +184,7 @@ def seed_bootstrap_admin(conn: sqlite3.Connection) -> None:
         password = os.getenv(pass_key, "").strip()
         if email and username and password:
             _upsert_bootstrap_user(conn, pwd_ctx, code, email, username, password, first, last)
+            conn.commit()
 
 
 def init_db() -> None:
