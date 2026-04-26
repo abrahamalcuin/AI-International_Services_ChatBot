@@ -209,6 +209,12 @@ def init_db() -> None:
                 "UPDATE seo_task_templates SET default_assignee = ? WHERE category = ?",
                 (assignee, category),
             )
+        # Backfill assigned_to_username on existing tasks that have none
+        for category, assignee in CATEGORY_ASSIGNEES.items():
+            conn.execute(
+                "UPDATE seo_client_tasks SET assigned_to_username = ? WHERE category = ? AND (assigned_to_username IS NULL OR assigned_to_username = '')",
+                (assignee, category),
+            )
         seed_bootstrap_admin(conn)
         conn.commit()
 
