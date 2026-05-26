@@ -20,6 +20,8 @@ from pydantic import BaseModel, Field, validator
 from starlette.middleware.sessions import SessionMiddleware
 
 from auth_db import employee_has_login, find_employee_by_token, get_connection, init_db, is_token_expired
+from finance_api import router as finance_router
+from finance_api.db import init_finance_schema
 
 load_dotenv()
 
@@ -1774,6 +1776,7 @@ app = FastAPI(
 )
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=False, allow_methods=["*"], allow_headers=["*"])
 app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax", https_only=True)
+app.include_router(finance_router)
 
 EMBEDDING_INDEX: List[EmbeddingRecord] = []
 GEMINI_CLIENT: Optional[GeminiClient] = None
@@ -1783,6 +1786,10 @@ GEMINI_CLIENT: Optional[GeminiClient] = None
 async def startup_event() -> None:
     global EMBEDDING_INDEX, GEMINI_CLIENT
     init_db()
+    try:
+        init_finance_schema()
+    except Exception as exc:
+        print(f"Startup warning: finance persistence unavailable: {exc}")
     try:
         GEMINI_CLIENT = GeminiClient()
         EMBEDDING_INDEX = load_embedding_index(EMBEDDINGS_PATH)

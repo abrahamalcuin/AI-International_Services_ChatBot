@@ -16,3 +16,9 @@ services:
         value: embeddings.json
       - key: GEMINI_GENERATION_MODEL
         value: gemini-1.5-flash
+      - key: FINANCE_DATABASE_URL
+        sync: false
+      - key: FINANCE_PIN
+        sync: false
+      - key: FINANCE_TOKEN_SECRET
+        sync: false
