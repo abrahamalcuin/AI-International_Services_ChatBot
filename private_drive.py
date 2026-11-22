@@ -20,6 +20,7 @@ from botocore.config import Config
 from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import FileResponse, Response, JSONResponse
 from pydantic import BaseModel, Field
+from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 
 router = APIRouter(prefix="/storage", tags=["private-drive"])
 PAGE = Path(__file__).with_name("storage_ui.html")
@@ -27,6 +28,8 @@ MAX_UPLOAD_BYTES = 5 * 1024**3
 MAX_PROXY_UPLOAD_BYTES = 200 * 1024**2
 _login_attempts = {}
 _login_lock = threading.Lock()
+REMEMBER_SECONDS = 30 * 24 * 60 * 60
+REMEMBER_COOKIE = 'alcuin_drive_trusted'
 
 
 def configured():
@@ -44,7 +47,23 @@ def client():
         region_name="auto", config=Config(signature_version="s3v4"))
 
 
+def remember_signer():
+    # Password changes invalidate all remembered devices.
+    secret = os.environ.get("SESSION_SECRET", "")
+    if not secret or secret == "change-this-in-render":
+        return None
+    binding = hashlib.sha256(os.environ.get("DRIVE_PASSWORD_HASH", "").encode()).hexdigest()
+    return URLSafeTimedSerializer(secret_key=secret, salt="alcuin-drive-v1-" + binding)
+
+
 def authorized(request):
+    signer = remember_signer()
+    token = request.cookies.get(REMEMBER_COOKIE)
+    if signer and token:
+        try:
+            return signer.loads(token, max_age=REMEMBER_SECONDS) == "drive-owner"
+        except (BadSignature, SignatureExpired):
+            pass
     return request.session.get("private_drive_owner") is True
 
 
@@ -86,6 +105,7 @@ def verify_password(password):
 
 class Login(BaseModel):
     password: str
+    remember: bool = True
 
 
 class Upload(BaseModel):
@@ -134,14 +154,26 @@ def login(request: Request, payload: Login):
     with _login_lock:
         _login_attempts.pop(address, None)
     request.session["private_drive_owner"] = True
-    return {"ok": True}
+    response = JSONResponse({"ok": True, "remembered": payload.remember})
+    if payload.remember:
+        signer = remember_signer()
+        if not signer:
+            raise HTTPException(503, "Persistent login is not configured")
+        response.set_cookie(REMEMBER_COOKIE, signer.dumps("drive-owner"),
+                            max_age=REMEMBER_SECONDS, path="/storage",
+                            secure=True, httponly=True, samesite="lax")
+    else:
+        response.delete_cookie(REMEMBER_COOKIE, path="/storage")
+    return response
 
 
 @router.post("/api/logout")
 def logout(request: Request):
     check_origin(request)
     request.session.pop("private_drive_owner", None)
-    return {"ok": True}
+    response = JSONResponse({"ok": True})
+    response.delete_cookie(REMEMBER_COOKIE, path="/storage", secure=True, httponly=True, samesite="lax")
+    return response
 
 
 @router.get("/api/files")
