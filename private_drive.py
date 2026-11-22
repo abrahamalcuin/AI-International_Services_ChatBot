@@ -403,6 +403,7 @@ def pwa_manifest():
         "display": "standalone",
         "background_color": "#111318",
         "theme_color": "#191b22",
+        "shortcuts": [{"name": "Check for updates", "short_name": "Update", "description": "Refresh Alcuin Drive to the latest version", "url": "/storage?check_update=1", "icons": [{"src": "/storage/icon/192.png", "sizes": "192x192"}]}],
         "icons": [
             {"src": "/storage/icon/192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
             {"src": "/storage/icon/512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
