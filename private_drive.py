@@ -265,3 +265,51 @@ def upload(request: Request, path: str = Form(...), file: UploadFile = File(...)
         raise HTTPException(413, "Upload exceeds 200 MB; use multipart upload for larger files")
     client().upload_fileobj(file.file, bucket(), key, ExtraArgs={"ContentType": file.content_type or "application/octet-stream"})
     return {"ok": True, "size": size}
+
+@router.get("/api/search")
+def search(request: Request, q: str = "", kind: str = "", start: str = "", end: str = ""):
+    require_owner(request)
+    if len(q) > 250:
+        raise HTTPException(400, "Query too long")
+    s3 = client()
+    results = []
+    scanned = 0
+    truncated = False
+    for page in s3.get_paginator("list_objects_v2").paginate(Bucket=bucket()):
+        for obj in page.get("Contents", []):
+            scanned += 1
+            if scanned > 10000:
+                truncated = True
+                break
+            key = obj["Key"]
+            if key.endswith("/") or q.lower() not in key.lower():
+                continue
+            name = key.rsplit("/", 1)[-1]
+            ext = name.lower().rsplit(".", 1)[-1] if "." in name else ""
+            category = ("image" if ext in ("jpg","jpeg","png","gif","heic","webp","tif","tiff") else
+                        "video" if ext in ("mp4","mov","webm","mkv") else
+                        "document" if ext in ("pdf","txt","doc","docx","xls","xlsx","csv","ppt","pptx") else "other")
+            modified = obj["LastModified"].isoformat()
+            if kind and kind != category:
+                continue
+            if start and modified[:10] < start or end and modified[:10] > end:
+                continue
+            results.append({"path":key,"name":name,"folder":False,"size":obj["Size"],
+                            "modified":modified,"category":category})
+            if len(results) >= 500:
+                truncated = True
+                break
+        if truncated:
+            break
+    return {"items":results,"scanned":min(scanned,10000),"truncated":truncated}
+
+
+@router.get("/api/preview-url")
+def preview_url(request: Request, path: str):
+    require_owner(request)
+    key = clean_path(path)
+    if not key or not key.lower().endswith((".jpg",".jpeg",".png",".webp",".gif",".pdf")):
+        raise HTTPException(400, "Preview unavailable for this file type")
+    url = client().generate_presigned_url("get_object",
+        Params={"Bucket":bucket(),"Key":key}, ExpiresIn=120)
+    return {"url":url}
