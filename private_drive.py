@@ -11,6 +11,9 @@ import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
+from io import BytesIO
+from PIL import Image
+import math
 
 import boto3
 from botocore.config import Config
@@ -267,10 +270,12 @@ def upload(request: Request, path: str = Form(...), file: UploadFile = File(...)
     return {"ok": True, "size": size}
 
 @router.get("/api/search")
-def search(request: Request, q: str = "", kind: str = "", start: str = "", end: str = ""):
+def search(request: Request, q: str = "", kind: str = "", start: str = "", end: str = "", lat: float | None = None, lon: float | None = None, radius_km: float = 50, exif: bool = False):
     require_owner(request)
-    if len(q) > 250:
-        raise HTTPException(400, "Query too long")
+    if len(q) > 250 or radius_km <= 0 or radius_km > 20000:
+        raise HTTPException(400, "Invalid search parameters")
+    if (lat is None) != (lon is None):
+        raise HTTPException(400, "Both GPS coordinates required")
     s3 = client()
     results = []
     scanned = 0
@@ -294,8 +299,20 @@ def search(request: Request, q: str = "", kind: str = "", start: str = "", end: 
                 continue
             if start and modified[:10] < start or end and modified[:10] > end:
                 continue
-            results.append({"path":key,"name":name,"folder":False,"size":obj["Size"],
-                            "modified":modified,"category":category})
+            entry = {"path":key,"name":name,"folder":False,"size":obj["Size"],
+                     "modified":modified,"category":category}
+            if (exif or lat is not None) and category == "image" and obj["Size"] <= 30000000:
+                entry.update(read_exif(s3, key))
+            if lat is not None:
+                if "latitude" not in entry:
+                    continue
+                a, b = math.radians(lat), math.radians(entry["latitude"])
+                h = math.sin((b-a)/2)**2 + math.cos(a)*math.cos(b)*math.sin(math.radians(entry["longitude"]-lon)/2)**2
+                distance = 12742.0176 * math.asin(min(1, math.sqrt(max(0,h))))
+                if distance > radius_km:
+                    continue
+                entry["distance_km"] = round(distance, 2)
+            results.append(entry)
             if len(results) >= 500:
                 truncated = True
                 break
@@ -313,3 +330,26 @@ def preview_url(request: Request, path: str):
     url = client().generate_presigned_url("get_object",
         Params={"Bucket":bucket(),"Key":key}, ExpiresIn=120)
     return {"url":url}
+
+def read_exif(s3, key):
+    try:
+        data = s3.get_object(Bucket=bucket(), Key=key)["Body"].read(30000001)
+        with Image.open(BytesIO(data)) as image:
+            ex = image.getexif()
+            result = {}
+            if ex.get(36867) or ex.get(306):
+                result["taken_at"] = str(ex.get(36867) or ex.get(306))
+            gps = ex.get_ifd(34853)
+            if gps:
+                def degrees(values, ref):
+                    n = [float(v) for v in values]
+                    value = n[0] + n[1]/60 + n[2]/3600
+                    return -value if str(ref).upper() in ("S","W") else value
+                latitude = degrees(gps[2], gps.get(1))
+                longitude = degrees(gps[4], gps.get(3))
+                if math.isfinite(latitude) and math.isfinite(longitude):
+                    result["latitude"] = round(latitude, 6)
+                    result["longitude"] = round(longitude, 6)
+            return result
+    except (KeyError, ValueError, TypeError, OSError, ZeroDivisionError, IndexError):
+        return {}
