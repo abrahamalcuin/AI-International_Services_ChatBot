@@ -1778,6 +1778,10 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=False,
 app.add_middleware(SessionMiddleware, secret_key=SESSION_SECRET, same_site="lax", https_only=True)
 app.include_router(finance_router)
 
+# Private R2 storage; separate owner authentication from existing employee login.
+from private_drive import router as private_drive_router
+app.include_router(private_drive_router)
+
 EMBEDDING_INDEX: List[EmbeddingRecord] = []
 GEMINI_CLIENT: Optional[GeminiClient] = None
 
