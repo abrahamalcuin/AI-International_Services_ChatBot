@@ -8,8 +8,12 @@ import os
 import secrets
 import time
 import threading
+import json
+import shutil
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import List
 from urllib.parse import quote
 from io import BytesIO
 from PIL import Image
@@ -18,7 +22,7 @@ import math
 import boto3
 from botocore.config import Config
 from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
-from fastapi.responses import FileResponse, Response, JSONResponse
+from fastapi.responses import FileResponse, Response, JSONResponse, RedirectResponse
 from pydantic import BaseModel, Field
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 
@@ -395,6 +399,7 @@ def pwa_manifest():
         "description": "Private personal cloud storage",
         "start_url": "/storage",
         "scope": "/storage",
+        "share_target": {"action": "/storage/share", "method": "POST", "enctype": "multipart/form-data", "params": {"title": "title", "text": "text", "url": "url", "files": [{"name": "files", "accept": ["image/*", "video/*", "application/pdf", "text/plain", ".heic", ".heif"]}]}},
         "display": "standalone",
         "background_color": "#111318",
         "theme_color": "#191b22",
@@ -435,3 +440,99 @@ self.addEventListener('fetch', event => {});
 """
     return Response(script, media_type="application/javascript",
                     headers={"Cache-Control": "no-store", "Service-Worker-Allowed": "/storage/"})
+
+
+# Incoming Android Web Share Target uploads are staged privately until the user chooses a folder.
+SHARE_ROOT = Path("/data/alcuin-share-staging") if Path("/data").is_dir() else Path("/tmp/alcuin-share-staging")
+SHARE_MAX_TOTAL = 200 * 1024**2
+SHARE_TTL = 3600
+
+
+def share_dir(token):
+    if len(token) != 32 or any(c not in "0123456789abcdef" for c in token):
+        raise HTTPException(400, "Invalid share token")
+    return SHARE_ROOT / token
+
+
+def cleanup_shares():
+    if not SHARE_ROOT.exists():
+        return
+    now = time.time()
+    for entry in SHARE_ROOT.iterdir():
+        if entry.is_dir() and now - entry.stat().st_mtime > SHARE_TTL:
+            shutil.rmtree(entry, ignore_errors=True)
+
+
+@router.post("/share")
+async def receive_share(request: Request, files: List[UploadFile] = File(default=[]),
+                        title: str = Form(default=""), text: str = Form(default=""),
+                        url: str = Form(default="")):
+    # Browser share targets submit a form navigation, not JSON. Authentication is still mandatory.
+    if not authorized(request) or not configured():
+        return Response("<h2>Sign in to Alcuin Drive first</h2><p>Open the installed app, sign in, then share again from Gallery.</p><a href='/storage'>Open Drive</a>",
+                        media_type="text/html", status_code=401)
+    check_origin(request)
+    cleanup_shares()
+    if not files:
+        return RedirectResponse("/storage?share_error=no_files", status_code=303)
+    token = uuid.uuid4().hex
+    directory = share_dir(token)
+    directory.mkdir(parents=True, exist_ok=False)
+    records = []
+    total = 0
+    try:
+        for index, incoming in enumerate(files):
+            filename = Path((incoming.filename or f"shared-{index+1}").replace("\\\\", "/")).name
+            if not filename or filename in (".", ".."):
+                filename = f"shared-{index+1}"
+            path = directory / str(index)
+            with path.open("wb") as out:
+                while True:
+                    chunk = await incoming.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    total += len(chunk)
+                    if total > SHARE_MAX_TOTAL:
+                        raise HTTPException(413, "Shared files exceed 200 MB")
+                    out.write(chunk)
+            records.append({"index": index, "name": filename, "size": path.stat().st_size,
+                            "content_type": incoming.content_type or "application/octet-stream"})
+        (directory / "meta.json").write_text(json.dumps(records))
+    except Exception:
+        shutil.rmtree(directory, ignore_errors=True)
+        raise
+    return RedirectResponse("/storage?shared=" + token, status_code=303)
+
+
+@router.get("/api/shared")
+def shared_pending(request: Request, token: str):
+    require_owner(request)
+    directory = share_dir(token)
+    if not directory.is_dir() or time.time() - directory.stat().st_mtime > SHARE_TTL:
+        raise HTTPException(404, "Shared files expired; share again from Gallery")
+    return {"items": json.loads((directory / "meta.json").read_text())}
+
+
+class ShareImport(BaseModel):
+    token: str
+    folder: str = ""
+
+
+@router.post("/api/import-shared")
+def import_shared(request: Request, payload: ShareImport):
+    require_owner(request)
+    check_origin(request)
+    directory = share_dir(payload.token)
+    if not directory.is_dir() or time.time() - directory.stat().st_mtime > SHARE_TTL:
+        raise HTTPException(404, "Shared files expired; share again")
+    prefix = clean_path(payload.folder)
+    records = json.loads((directory / "meta.json").read_text())
+    s3 = client()
+    uploaded = []
+    for item in records:
+        key = (prefix + "/" if prefix else "") + clean_path(item["name"])
+        s3.upload_file(str(directory / str(item["index"])), bucket(), key,
+                       ExtraArgs={"ContentType": item["content_type"]})
+        uploaded.append(key)
+    shutil.rmtree(directory, ignore_errors=True)
+    return {"ok": True, "uploaded": uploaded}
