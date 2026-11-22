@@ -6,19 +6,24 @@ import hashlib
 import hmac
 import os
 import secrets
+import time
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import quote
 
 import boto3
 from botocore.config import Config
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/storage", tags=["private-drive"])
 PAGE = Path(__file__).with_name("storage_ui.html")
 MAX_UPLOAD_BYTES = 5 * 1024**3
+MAX_PROXY_UPLOAD_BYTES = 200 * 1024**2
+_login_attempts = {}
+_login_lock = threading.Lock()
 
 
 def configured():
@@ -38,6 +43,15 @@ def client():
 
 def authorized(request):
     return request.session.get("private_drive_owner") is True
+
+
+def check_origin(request):
+    origin = request.headers.get('origin')
+    if origin:
+        from urllib.parse import urlparse
+        parsed = urlparse(origin)
+        if parsed.scheme != 'https' or parsed.netloc != request.headers.get('host'):
+            raise HTTPException(403, 'Invalid request origin')
 
 
 def require_owner(request):
@@ -98,16 +112,31 @@ def status(request: Request):
 
 @router.post("/api/login")
 def login(request: Request, payload: Login):
+    check_origin(request)
+    address = request.client.host if request.client else 'unknown'
+    now = time.monotonic()
+    with _login_lock:
+        if len(_login_attempts) > 10000:
+            _login_attempts.clear()
+        attempts = [t for t in _login_attempts.get(address, []) if now-t < 900]
+        if len(attempts) >= 8:
+            raise HTTPException(429, 'Too many attempts; retry later')
+        _login_attempts[address] = attempts
     if not configured():
         raise HTTPException(503, "Drive not configured")
     if not verify_password(payload.password):
+        with _login_lock:
+            _login_attempts.setdefault(address, []).append(now)
         raise HTTPException(401, "Invalid credentials")
+    with _login_lock:
+        _login_attempts.pop(address, None)
     request.session["private_drive_owner"] = True
     return {"ok": True}
 
 
 @router.post("/api/logout")
 def logout(request: Request):
+    check_origin(request)
     request.session.pop("private_drive_owner", None)
     return {"ok": True}
 
@@ -136,6 +165,7 @@ def files(request: Request, prefix: str = "", cursor: str = ""):
 @router.post("/api/folder")
 def folder(request: Request, payload: PathRequest):
     require_owner(request)
+    check_origin(request)
     path = clean_path(payload.path)
     if not path:
         raise HTTPException(400, "Folder name required")
@@ -146,6 +176,7 @@ def folder(request: Request, payload: PathRequest):
 @router.post("/api/upload-url")
 def upload_url(request: Request, payload: Upload):
     require_owner(request)
+    check_origin(request)
     path = clean_path(payload.path)
     if not path or path.endswith("/"):
         raise HTTPException(400, "File path required")
@@ -171,6 +202,7 @@ def download_url(request: Request, path: str):
 @router.post("/api/delete")
 def delete(request: Request, payload: PathRequest):
     require_owner(request)
+    check_origin(request)
     path = clean_path(payload.path)
     if not path:
         raise HTTPException(400, "Cannot delete root")
@@ -195,6 +227,7 @@ def delete(request: Request, payload: PathRequest):
 @router.post("/api/move")
 def move(request: Request, payload: MoveRequest):
     require_owner(request)
+    check_origin(request)
     source, dest = clean_path(payload.source), clean_path(payload.destination)
     if not source or not dest or source == dest:
         raise HTTPException(400, "Invalid source or destination")
@@ -214,3 +247,21 @@ def move(request: Request, payload: MoveRequest):
     s3.copy_object(Bucket=bucket(), Key=dest, CopySource={"Bucket": bucket(), "Key": source})
     s3.delete_object(Bucket=bucket(), Key=source)
     return {"ok": True}
+
+
+@router.post("/api/upload")
+def upload(request: Request, path: str = Form(...), file: UploadFile = File(...)):
+    """Same-origin streaming upload; does not require permissive R2 bucket CORS."""
+    require_owner(request)
+    check_origin(request)
+    key = clean_path(path)
+    if not key:
+        raise HTTPException(400, "File path required")
+    # Spooled file is disk-backed above the Starlette threshold.
+    file.file.seek(0, 2)
+    size = file.file.tell()
+    file.file.seek(0)
+    if size > MAX_PROXY_UPLOAD_BYTES:
+        raise HTTPException(413, "Upload exceeds 200 MB; use multipart upload for larger files")
+    client().upload_fileobj(file.file, bucket(), key, ExtraArgs={"ContentType": file.content_type or "application/octet-stream"})
+    return {"ok": True, "size": size}
