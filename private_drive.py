@@ -18,7 +18,7 @@ import math
 import boto3
 from botocore.config import Config
 from fastapi import APIRouter, HTTPException, Request, UploadFile, File, Form
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response, JSONResponse
 from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/storage", tags=["private-drive"])
@@ -353,3 +353,53 @@ def read_exif(s3, key):
             return result
     except (KeyError, ValueError, TypeError, OSError, ZeroDivisionError, IndexError):
         return {}
+
+
+@router.get("/manifest.webmanifest")
+def pwa_manifest():
+    return JSONResponse({
+        "name": "Alcuin Drive",
+        "short_name": "Drive",
+        "description": "Private personal cloud storage",
+        "start_url": "/storage",
+        "scope": "/storage",
+        "display": "standalone",
+        "background_color": "#111318",
+        "theme_color": "#191b22",
+        "icons": [
+            {"src": "/storage/icon/192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+            {"src": "/storage/icon/512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+        ]
+    }, media_type="application/manifest+json", headers={"Cache-Control": "public, max-age=3600"})
+
+
+@router.get("/icon/{size}.png")
+def pwa_icon(size: int):
+    if size not in (192, 512):
+        raise HTTPException(404, "Icon not found")
+    from PIL import ImageDraw, ImageFont
+    img = Image.new("RGB", (size, size), "#2463ce")
+    draw = ImageDraw.Draw(img)
+    scale = size / 512
+    # Distinctive cloud-and-folder mark with generous maskable safe area.
+    draw.rounded_rectangle((int(105*scale), int(195*scale), int(407*scale), int(340*scale)),
+                           radius=int(30*scale), fill="#ffffff")
+    draw.rounded_rectangle((int(105*scale), int(164*scale), int(257*scale), int(241*scale)),
+                           radius=int(21*scale), fill="#ffffff")
+    draw.rounded_rectangle((int(142*scale), int(240*scale), int(370*scale), int(262*scale)),
+                           radius=int(10*scale), fill="#2463ce")
+    stream = BytesIO()
+    img.save(stream, format="PNG")
+    return Response(stream.getvalue(), media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=86400"})
+
+
+@router.get("/sw.js")
+def pwa_service_worker():
+    # Network-only service worker: never cache private files, API responses or sessions.
+    script = """self.addEventListener('install', event => self.skipWaiting());
+self.addEventListener('activate', event => event.waitUntil(self.clients.claim()));
+self.addEventListener('fetch', event => {});
+"""
+    return Response(script, media_type="application/javascript",
+                    headers={"Cache-Control": "no-store", "Service-Worker-Allowed": "/storage/"})
