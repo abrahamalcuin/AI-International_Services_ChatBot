@@ -472,7 +472,9 @@ async def receive_share(request: Request, files: List[UploadFile] = File(default
     if not authorized(request) or not configured():
         return Response("<h2>Sign in to Alcuin Drive first</h2><p>Open the installed app, sign in, then share again from Gallery.</p><a href='/storage'>Open Drive</a>",
                         media_type="text/html", status_code=401)
-    check_origin(request)
+    # Android's OS share sheet can submit Origin: null; browser share targets
+    # navigate to this endpoint rather than issuing a same-origin fetch.
+    # Require the authenticated, SameSite cookie instead of rejecting that origin.
     cleanup_shares()
     if not files:
         return RedirectResponse("/storage?share_error=no_files", status_code=303)
