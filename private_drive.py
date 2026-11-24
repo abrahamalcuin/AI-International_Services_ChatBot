@@ -227,6 +227,90 @@ def upload_url(request: Request, payload: Upload):
     return {"url": url, "headers": {"Content-Type": payload.content_type}}
 
 
+
+# Multipart chunks use the authenticated same-origin API so no R2 CORS changes
+# are needed. Each request is bounded; R2 retains completed parts across retries.
+MULTIPART_PART_SIZE = 16 * 1024**2
+MULTIPART_MAX_SIZE = MULTIPART_PART_SIZE * 10000
+
+class MultipartStart(BaseModel):
+    path: str
+    size: int = Field(gt=0, le=MULTIPART_MAX_SIZE)
+    content_type: str = "application/octet-stream"
+
+class MultipartSession(BaseModel):
+    path: str
+    upload_id: str
+
+def multipart_key(path):
+    key = clean_path(path)
+    if not key:
+        raise HTTPException(400, "File path required")
+    return key
+
+@router.post("/api/multipart/start")
+def multipart_start(request: Request, payload: MultipartStart):
+    require_owner(request)
+    check_origin(request)
+    key = multipart_key(payload.path)
+    result = client().create_multipart_upload(Bucket=bucket(), Key=key, ContentType=payload.content_type,
+        Metadata={"drive-size": str(payload.size)})
+    return {"upload_id": result["UploadId"], "part_size": MULTIPART_PART_SIZE}
+
+@router.post("/api/multipart/part")
+def multipart_part(request: Request, path: str = Form(...), upload_id: str = Form(...),
+                   part_number: int = Form(...), file: UploadFile = File(...)):
+    require_owner(request)
+    check_origin(request)
+    if not 1 <= part_number <= 10000:
+        raise HTTPException(400, "Invalid part number")
+    file.file.seek(0, 2)
+    size = file.file.tell()
+    file.file.seek(0)
+    if not 0 < size <= MULTIPART_PART_SIZE:
+        raise HTTPException(400, "Invalid part size")
+    result = client().upload_part(Bucket=bucket(), Key=multipart_key(path), UploadId=upload_id,
+        PartNumber=part_number, Body=file.file, ContentLength=size)
+    return {"etag": result["ETag"]}
+
+def multipart_parts(s3, key, upload_id):
+    parts = []
+    for page in s3.get_paginator("list_parts").paginate(Bucket=bucket(), Key=key, UploadId=upload_id):
+        parts.extend(page.get("Parts", []))
+    return parts
+
+@router.post("/api/multipart/status")
+def multipart_status(request: Request, payload: MultipartSession):
+    require_owner(request)
+    check_origin(request)
+    parts = multipart_parts(client(), multipart_key(payload.path), payload.upload_id)
+    return {"parts": [{"number": p["PartNumber"], "size": p["Size"]} for p in parts]}
+
+class MultipartComplete(MultipartSession):
+    size: int = Field(gt=0, le=MULTIPART_MAX_SIZE)
+
+@router.post("/api/multipart/complete")
+def multipart_complete(request: Request, payload: MultipartComplete):
+    require_owner(request)
+    check_origin(request)
+    s3 = client()
+    key = multipart_key(payload.path)
+    parts = multipart_parts(s3, key, payload.upload_id)
+    count = math.ceil(payload.size / MULTIPART_PART_SIZE)
+    if len(parts) != count or any(p["PartNumber"] != i+1 or p["Size"] != min(MULTIPART_PART_SIZE, payload.size-i*MULTIPART_PART_SIZE) for i,p in enumerate(parts)):
+        raise HTTPException(409, "Upload is incomplete")
+    s3.complete_multipart_upload(Bucket=bucket(), Key=key, UploadId=payload.upload_id,
+        MultipartUpload={"Parts": [{"PartNumber": p["PartNumber"], "ETag": p["ETag"]} for p in parts]})
+    return {"ok": True, "size": payload.size}
+
+@router.post("/api/multipart/abort")
+def multipart_abort(request: Request, payload: MultipartSession):
+    require_owner(request)
+    check_origin(request)
+    client().abort_multipart_upload(Bucket=bucket(), Key=multipart_key(payload.path), UploadId=payload.upload_id)
+    return {"ok": True}
+
+
 @router.get("/api/download-url")
 def download_url(request: Request, path: str):
     require_owner(request)
